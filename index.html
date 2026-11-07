@@ -103,7 +103,7 @@ function add(r){if(!r.code&&!r.addr)return 0;var k=kf(r),p=P.find(function(x){re
  var n=String(r.note||'').trim();if(n&&(p.note||'').toLowerCase().indexOf(n.toLowerCase())<0)p.note=p.note?p.note+' | '+n:n;
  derive(p);return 2}
 function cmp(a,b){return(a.rd||99)-(b.rd||99)||RO[a.reg]-RO[b.reg]||ko(a)-ko(b)}
-var cs=0,DEL=[],TID={},OV={'cg1@14':{pk:true}},tf='',sq='',sf='';
+var cs=0,DEL=[],AR=[],TR={},PR=[],UM={},av='',af='',MYID='',TID={},OV={'cg1@14':{pk:true}},tf='',sq='',sf='';
 function dist(){P=P.filter(function(p){var d=p.ch&&(p.st=='assigned'||p.st=='new');if(d&&p.id)DEL.push(p.id);return !d});
  var mc=Math.max.apply(null,V.map(function(v){return v.cap})),L=[];
  P.slice().forEach(function(p){if(p.ch||p.st=='pickup'||p.st=='onway'||p.st=='done'||p.st=='fail')return;
@@ -122,6 +122,7 @@ async function handle(files){msg='';try{await load();var all=[];
  catch(e){msg+=f.name+': تعذّرت القراءة ('+e.message+') | '}}
  var cnt={};all.forEach(function(a){a[1].forEach(function(r){if(r.trip)cnt[r.trip]=(cnt[r.trip]||0)+1})});
  var ct=Object.keys(cnt).sort(function(a,b){return cnt[b]-cnt[a]})[0]||'0';
+ if(TR[ct]&&TR[ct].archived_at){msg+='رحلة '+ct+' موجودة بالأرشيف، أرجعها للرحلات أولاً | ';R();return}
  all.forEach(function(a){var c=0,m=0;a[1].forEach(function(r){r.trip=r.trip||ct;var x=add(r);if(x==1)c++;if(x==2)m++});msg+=a[0]+': '+c+' رمز جديد، '+m+' دُمج | '});
  dist();await save()}catch(e){msg+='خطأ: '+(e.message||e)}R()}
 function demo(){var c='الرمز,الاسم,الوزن,العدد,المبلغ,المحتوى,العنوان,ملاحظات\nK101,Müller GmbH,600,3,450,مواد بناء,Hauptstr. 5 44800 Bochum,\nK102,Schmidt,500,2,0,قطع غيار,Dorfstr. 9 40210 Düsseldorf,الحساب 0\nK103,Weber,450,1,300,أدوات,Marktplatz 2 50667 Köln,\nK104,Fischer,700,4,820,بلاط,Ringstr. 12 80331 München,\nK105,De Vries,800,5,950,أثاث,Damrak 10 Amsterdam Niederlande,\nK106,Jansen,300,1,120,ملابس,Coolsingel 40 Rotterdam Niederlande,\nK107,Dupont,900,6,1400,معدات,Rue de Rivoli 8 Paris Frankreich,\nK108,Gruber,400,2,260,أدوات,Ringstr. 3 Wien Österreich,\nK109,Bauer,350,1,90,مواد,Lagerweg 1 44653 Herne,تسليم مستودع\nK110,Klein,500,2,380,بضائع,Bahnhofstr. 7 30159 Hannover,';
@@ -136,14 +137,14 @@ function mapSVG(L){var s='<svg class="map" viewBox="0 0 320 240"><g fill="none" 
  return s+'</svg>'}
 
 var tfp=function(p){return !tf||p.trip==tf};
-function tfSel(){var t=[];P.forEach(function(p){if(p.trip&&t.indexOf(p.trip)<0)t.push(p.trip)});if(!t.length)return '';return '<div class="box"><b>الرحلة:</b> <select onchange="tf=this.value;R()"><option value="">كل الرحلات</option>'+t.map(function(x){return '<option value="'+E(x)+'"'+(x==tf?' selected':'')+'>رحلة '+E(x)+'</option>'}).join('')+'</select></div>'}
+function tfSel(){var t=[];P.forEach(function(p){if(p.trip&&t.indexOf(p.trip)<0)t.push(p.trip)});if(!t.length)return '';if(!tf&&t.length==1)tf=t[0];return '<div class="box"><b>الرحلة:</b> <select onchange="tf=this.value;R()"><option value="">كل الرحلات</option>'+t.map(function(x){return '<option value="'+E(x)+'"'+(x==tf?' selected':'')+'>رحلة '+E(x)+'</option>'}).join('')+'</select></div>'}
 async function tp(i){var p=P[i];OV[p.key]={pk:p.st!='pickup'};derive(p);dist();try{await save();await load()}catch(e){alert(e.message)}R()}
 function pcard(p){var i=P.indexOf(p),rows=[['الرحلة',p.trip?'رقم '+p.trip+(p.td?' · '+p.td:''):''],['الهاتف',p.tel],['البلد',p.country],['العنوان',p.addr||'⚠ لا يوجد عنوان'],['العدد والوزن',p.q+' طرد · '+p.w+' كغ'],['المحتوى',p.content],['المبلغ',p.amt+' €'],['المطلوب تحصيله',p.collect+' €'],['حالة الحساب',p.ps],['ملاحظات',p.note],['السيارة',p.v!=null&&V[p.v]?V[p.v].n+' · جولة '+p.rd:''],['وقت التسليم',p.t],['سبب التعذّر',p.reason],['ملاحظة السائق',p.dn],['تنبيهات',(p.cf||[]).join(' ; ')]].filter(function(x){return x[1]!==undefined&&x[1]!==null&&String(x[1]).trim()!==''});
  return '<div class="job"><div class="top"><b>'+E(p.code)+' · '+E(p.name)+'</b><span class="tag '+p.st+'">'+S[p.st]+(p.pay?' · '+PY[p.pay]:'')+'</span></div><table style="min-width:0;margin-top:6px">'+rows.map(function(x){return '<tr><th>'+x[0]+'</th><td>'+E(x[1])+'</td></tr>'}).join('')+'</table>'+(p.ph?'<img src="'+p.ph+'" style="max-width:100%;border-radius:8px;margin-top:6px">':'')+(p.ch||['pickup','assigned','new'].indexOf(p.st)<0?'':'<button class="btn g" onclick="tp('+i+')">'+(p.st=='pickup'?'إرجاع للتوزيع':'تحويل لاستلام مستودع')+'</button>')+'</div>'}
 function srchH(){var q=sq.toLowerCase(),L=P.filter(function(p){return tfp(p)&&(!sf||p.st==sf)&&(!q||[p.code,p.name,p.tel,p.addr,p.content,p.note,p.country,p.ps,p.dn].join(' ').toLowerCase().indexOf(q)>-1)}).sort(cmp);
  return tfSel()+'<div class="box"><input type="text" id="sq" placeholder="ابحث بالرمز أو الاسم أو الهاتف أو العنوان" value="'+E(sq)+'" style="width:100%;margin-bottom:6px"><select onchange="sf=this.value;sq=$(\'#sq\').value;R()">'+[['','كل الحالات'],['assigned','معيّن'],['onway','بالطريق'],['done','تم التسليم'],['fail','تعذّر'],['pickup','بالمستودع'],['split','مقسّم']].map(function(x){return '<option value="'+x[0]+'"'+(x[0]==sf?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select> <button class="btn" onclick="sq=$(\'#sq\').value;R()">بحث</button><div class="mut">'+L.length+' نتيجة</div></div>'+L.slice(0,40).map(pcard).join('')+(L.length>40?'<p class="mut">يظهر أول 40 نتيجة، ضيّق البحث.</p>':'')}
 function adminH(){return adminAll().split('<!--T-->')[0]}
-function tripH(){return tfSel()+adminAll().split('<!--T-->')[1]}
+function tripH(){return tfSel()+(tf?'<div class="box"><button class="btn" onclick="arcTrip()">حفظ الرحلة بالأرشيف</button><button class="btn er" onclick="delT()">حذف الرحلة</button></div>':'')+adminAll().split('<!--T-->')[1]}
 function adminAll(){var c={};P.forEach(function(p){c[p.st]=(c[p.st]||0)+1});var cash={},bank=0;
  P.forEach(function(p){if(p.st=='done'){if(p.pay=='cash')cash[p.v]=(cash[p.v]||0)+p.collect;if(p.pay=='bank')bank+=p.collect}});
  var L=ld(),h='<div class="st">'+[['الكل',P.length],['معيّن',c.assigned||0],['بالطريق',c.onway||0],['تم',c.done||0],['تعذّر',c.fail||0],['بالمستودع',c.pickup||0]].map(function(x){return '<div class="s"><b>'+x[1]+'</b><span>'+x[0]+'</span></div>'}).join('')+'</div>';
@@ -186,7 +187,7 @@ function pic(i,inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onl
  c.toBlob(async function(b){var path=P[i].id+'/'+Date.now()+'.jpg',u=await sb.storage.from('delivery-photos').upload(path,b,{contentType:'image/jpeg'});if(u.error){alert(u.error.message);return}await rpc('driver_note',{p_parcel:P[i].id,p_note:null,p_photo:path});await load();R()},'image/jpeg',.75)};im.src=r.result};r.readAsDataURL(f)}
 
 function archL(q){q=(q||'').toLowerCase();var v=U[me].r=='d'?U[me].v:null;
- var L=P.filter(function(p){return(p.st=='done'||p.st=='fail')&&(v===null||p.v===v)&&String(p.code).toLowerCase().indexOf(q)>-1});
+ var L=P.concat(AR).filter(function(p){return(p.st=='done'||p.st=='fail')&&(v===null||p.v===v)&&String(p.code).toLowerCase().indexOf(q)>-1});
  return L.length?'<div class="tw"><table><tr><th>الرمز</th><th>الاسم</th><th>النتيجة</th><th>الوقت</th><th>ملاحظة</th></tr>'+L.map(function(p){return '<tr><td>'+E(p.code)+'</td><td>'+E(p.name)+'</td><td><span class="tag '+p.st+'">'+S[p.st]+'</span> '+(p.pay?PY[p.pay]:E(p.reason))+'</td><td>'+E(p.t)+'</td><td>'+E(p.dn)+(p.ph?'<img class="th" src="'+p.ph+'">':'')+'</td></tr>'}).join('')+'</table></div>':'<p class="mut">لا توجد نتائج</p>'}
 function sa(v){$('#al').innerHTML=archL(v)}
 function archH(){return '<div class="box"><h2>الأرشيف</h2><input type="text" placeholder="ابحث بالرمز" oninput="sa(this.value)"><div id="al">'+archL('')+'</div></div>'}
@@ -195,25 +196,25 @@ function custH(){var p=P.find(function(x){return String(x.code).toLowerCase()==c
  if(p){var s=['assigned','onway','done'],a=p.st=='done'?2:p.st=='onway'?1:p.st=='assigned'?0:-1;
   h+='<p><b>'+E(p.name)+'</b><br><span class="mut">'+E(p.addr)+'</span></p>'+(p.st=='pickup'?'<p>طردك جاهز للاستلام من المستودع.</p>':p.st=='fail'?'<p style="color:var(--err)">تعذّر التسليم: '+E(p.reason)+'</p>':'<div style="display:flex;text-align:center">'+['تم التحميل','في الطريق إليك','تم التسليم'].map(function(l,i){return '<div style="flex:1;font-size:13px;color:'+(i<=a?'var(--ok)':'var(--mut)')+'">●<br>'+l+'</div>'}).join('')+'</div>')+(p.st=='done'&&p.ph?'<p>صورة التسليم:</p><img src="'+p.ph+'" style="max-width:100%;border-radius:8px">':'')}
  return h+'</div>'}
-function rep(){var cash={},bank=0,pd=0,d=P.filter(function(p){return p.st=='done'}),f=P.filter(function(p){return p.st=='fail'});
+function rep(L){L=L||P;var cash={},bank=0,pd=0,d=L.filter(function(p){return p.st=='done'}),f=L.filter(function(p){return p.st=='fail'});
  d.forEach(function(p){if(p.pay=='cash')cash[p.v]=(cash[p.v]||0)+p.collect;else if(p.pay=='bank')bank+=p.collect;else pd++});
  $('#rep').innerHTML='<div class="np"><button class="btn" onclick="window.print()">طباعة / حفظ PDF</button><button class="btn g" onclick="$(\'#rep\').style.display=\'none\'">إغلاق</button></div><h2>T.K Group – ملخص الرحلة</h2><p>'+new Date().toLocaleString('de-DE')+'</p>'
-  +'<p>إجمالي: '+P.length+' · تم التسليم: '+d.length+' · تعذّر: '+f.length+' · استلام مستودع: '+P.filter(function(p){return p.st=='pickup'}).length+'</p>'
+  +'<p>إجمالي: '+L.length+' · تم التسليم: '+d.length+' · تعذّر: '+f.length+' · استلام مستودع: '+L.filter(function(p){return p.st=='pickup'}).length+'</p>'
   +Object.keys(cash).map(function(k){return '<p>كاش عند '+E(V[k].n)+': <b>'+cash[k]+' €</b></p>'}).join('')+'<p>تحويلات بنكية: <b>'+bank+' €</b> · منتهي: '+pd+'</p>'
   +'<table style="min-width:0"><tr><th>الرمز</th><th>الاسم</th><th>السيارة</th><th>النتيجة</th><th>ملاحظة</th></tr>'+d.concat(f).map(function(p){return '<tr><td>'+E(p.code)+'</td><td>'+E(p.name)+'</td><td>'+E(V[p.v].n)+'</td><td>'+S[p.st]+' '+(p.pay?PY[p.pay]:E(p.reason))+'</td><td>'+E(p.dn)+'</td></tr>'}).join('')+'</table>';$('#rep').style.display='block'}
 
 function R(){var a=$('#app');
  if(!me){a.innerHTML='<div class="lg"><svg class="bgs" viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice" fill="none" stroke="#c8b27a" stroke-width="1.6" opacity=".3"><circle cx="200" cy="340" r="140"/><ellipse cx="200" cy="340" rx="140" ry="48"/><ellipse cx="200" cy="340" rx="60" ry="140"/><path d="M60 340h280M200 200v280"/><path d="M50 260Q200 90 350 260" stroke="#f5c518" stroke-width="4"/><path d="M30 90l60 18 25-30 10 3-12 33 40 12-4 8-48-8-20 28-8-2 8-30-45-14z"/><path d="M310 70h70M345 70V12M345 12l-55 20M345 12l35 20M325 70v50h40V70"/><g transform="translate(14 570)"><rect y="8" width="70" height="36"/><rect x="72" y="22" width="34" height="22"/><circle cx="20" cy="48" r="8"/><circle cx="90" cy="48" r="8"/></g><path d="M270 610h120l-16 30h-88zM292 610v-24h62v24M312 586v-14h22v14"/></svg>'
   +'<div class="lc"><img src="'+LOGO+'" alt="T.K Group"><h3>تسجيل الدخول</h3><input id="u" placeholder="اسم المستخدم" autocapitalize="off"><input id="p" type="password" placeholder="كلمة السر" onkeydown="if(event.key==\'Enter\')lg()"><button class="btn" style="width:100%" onclick="lg()">دخول</button><div style="color:#ee7a6c">'+E(msg)+'</div><hr style="border-color:#c8b27a55"><b>تتبّع طرد</b><input id="tc" placeholder="رمز الطرد"><input id="tp" placeholder="آخر 4 أرقام من هاتفك (لعرض التفاصيل)"><button class="btn g" style="color:#fff!important" onclick="trk()">تتبّع</button><div id="tr" style="text-align:right"></div></div></div>';return}
- var r=U[me].r,t=r=='a'?[['d','اللوحة'],['t','الرحلة'],['s','بحث'],['a','الأرشيف']]:r=='d'?[['d','توصيلاتي'],['a','الأرشيف']]:[['d','تتبّع']];
- a.innerHTML='<header><img src="'+LOGO+'" alt=""><b>T.K Group</b></header><nav>'+t.map(function(x){return '<button class="'+(tab==x[0]?'on':'')+'" onclick="tab=\''+x[0]+'\';R()">'+x[1]+'</button>'}).join('')+'<button onclick="out()">خروج · '+E(U[me].n||me)+'</button></nav><main>'+(tab=='a'?archH():tab=='t'&&r=='a'?tripH():tab=='s'&&r=='a'?srchH():r=='a'?adminH():r=='d'?drvH():custH())+'</main>'}
+ var r=U[me].r,t=r=='a'?[['d','اللوحة'],['t','الرحلة'],['s','بحث'],['a','أرشيف الرحلات'],['u','المستخدمون']]:r=='d'?[['d','توصيلاتي'],['a','الأرشيف']]:[['d','تتبّع']];
+ a.innerHTML='<header><img src="'+LOGO+'" alt=""><b>T.K Group</b></header><nav>'+t.map(function(x){return '<button class="'+(tab==x[0]?'on':'')+'" onclick="tab=\''+x[0]+'\';R()">'+x[1]+'</button>'}).join('')+'<button onclick="out()">خروج · '+E(U[me].n||me)+'</button></nav><main>'+(tab=='a'?(r=='a'?arcH():archH()):tab=='u'&&r=='a'?usrH():tab=='t'&&r=='a'?tripH():tab=='s'&&r=='a'?srchH():r=='a'?adminH():r=='d'?drvH():custH())+'</main>'}
 async function load(){var a=await Promise.all([sb.from('vehicles').select('*').order('sort_order'),sb.from('trips').select('*'),sb.from('parcels').select('*').order('created_at').limit(5000)]);
  if(a[2].error)throw a[2].error;
  V=(a[0].data||[]).map(function(v){return{id:v.id,n:v.name,cap:+v.capacity_kg}});var vi={};V.forEach(function(v,i){vi[v.id]=i});
  var T={};TID={};(a[1].data||[]).forEach(function(t){T[t.id]=t;TID[t.trip_no]=t.id});
  P=(a[2].data||[]).map(function(r){var t=T[r.trip_id]||{},c=r.part_no!=null,b='c'+nm(r.code)+'@'+nm(t.trip_no),k=c?b+'#'+r.part_no:b;
   if(r.pickup_override!=null)OV[k]={pk:r.pickup_override};
-  return{id:r.id,key:k,pk:c?b:undefined,ch:c,base:r.code,code:c?r.code+' ('+r.part_no+'/'+r.part_total+')':r.code,name:r.recipient||'',tel:r.phone||'',country:r.country||'',reg:r.region||'DE',plz:parseInt(r.postal)||99999,addr:r.address||'',q:r.parcel_count,w:+r.weight_kg,content:r.contents||'',amt:+r.amount_eur,collect:+r.collect_eur,hc:true,col:+r.collect_eur,hq:true,ps:r.payment_status||'',note:r.notes||'',st:r.status,v:vi[r.vehicle_id],rd:r.round,seq:r.seq,pay:r.pay_method,reason:r.fail_reason,dn:r.driver_note||'',ph:r.photo_path?PH+r.photo_path:null,t:r.done_at?new Date(r.done_at).toLocaleString('de-DE'):'',trip:t.trip_no||'',td:t.trip_date?t.trip_date.split('-').reverse().join('/'):'',cf:Array.isArray(r.flags)?r.flags:[]}})}
+  return{id:r.id,key:k,pk:c?b:undefined,ch:c,base:r.code,code:c?r.code+' ('+r.part_no+'/'+r.part_total+')':r.code,name:r.recipient||'',tel:r.phone||'',country:r.country||'',reg:r.region||'DE',plz:parseInt(r.postal)||99999,addr:r.address||'',q:r.parcel_count,w:+r.weight_kg,content:r.contents||'',amt:+r.amount_eur,collect:+r.collect_eur,hc:true,col:+r.collect_eur,hq:true,ps:r.payment_status||'',note:r.notes||'',st:r.status,v:vi[r.vehicle_id],rd:r.round,seq:r.seq,pay:r.pay_method,reason:r.fail_reason,dn:r.driver_note||'',ph:r.photo_path?PH+r.photo_path:null,t:r.done_at?new Date(r.done_at).toLocaleString('de-DE'):'',trip:t.trip_no||'',td:t.trip_date?t.trip_date.split('-').reverse().join('/'):'',cf:Array.isArray(r.flags)?r.flags:[],arch:!!t.archived_at}});AR=P.filter(function(p){return p.arch});P=P.filter(function(p){return !p.arch});TR={};(a[1].data||[]).forEach(function(t){TR[t.trip_no]=t})}
 function toDB(p){var m=/\((\d+)\/(\d+)\)/.exec(p.code),o={trip_id:TID[p.trip||'0'],code:p.base||p.code,parent_id:p.parent||null,part_no:p.ch&&m?+m[1]:null,part_total:p.ch&&m?+m[2]:null,recipient:p.name||null,phone:p.tel||null,country:p.country||null,region:p.reg,postal:p.plz<99999?String(p.plz):null,address:p.addr||null,parcel_count:p.q,weight_kg:p.w,contents:p.content||null,amount_eur:p.amt,collect_eur:p.collect,payment_status:p.ps||null,notes:p.note||null,status:p.st,pickup_override:OV[p.key]?OV[p.key].pk:null,vehicle_id:p.v!=null&&V[p.v]?V[p.v].id:null,round:p.rd||null,seq:p.seq||null,flags:p.cf||[]};if(p.id)o.id=p.id;return o}
 async function save(){var fr={},rs=await sb.from('parcels').select('id,status');if(rs.error)throw rs.error;(rs.data||[]).forEach(function(r){fr[r.id]=r.status});
  var tr=await sb.from('trips').select('id,trip_no');(tr.data||[]).forEach(function(t){TID[t.trip_no]=t.id});
@@ -234,11 +235,43 @@ async function trk(){var r=await sb.rpc('track_parcel',{p_code:$('#tc').value,p_
   h='<b>'+E(d.code)+'</b> · '+(L[d.status]||E(d.status))+(d.trip?' · رحلة '+E(d.trip):'')+(d.verified?'<br>'+E(d.name)+'<br>'+E(d.address)+(d.photo?'<br><img src="'+PH+E(d.photo)+'" style="max-width:100%;border-radius:8px">':''):'<br><small>أدخل آخر 4 أرقام من هاتفك لعرض التفاصيل وصورة التسليم</small>')}
  $('#tr').innerHTML=h}
 async function lg(){var u=$('#u').value.trim().toLowerCase();msg='';var r=await sb.auth.signInWithPassword({email:u+'@tk-group.app',password:$('#p').value});if(r.error){msg='بيانات الدخول غير صحيحة';R();return}await boot()}
+function sumT(L){var s={n:0,done:0,fail:0,pend:0,pick:0,exp:0,cash:0,bank:0,paid:0,rest:0,vk:{}};
+ L.forEach(function(p){if(p.st=='split')return;s.n++;s.exp+=p.collect||0;
+  if(p.st=='done'){s.done++;if(p.pay=='cash'){s.cash+=p.collect;s.vk[p.v]=(s.vk[p.v]||0)+p.collect}else if(p.pay=='bank')s.bank+=p.collect;else s.paid+=p.collect}
+  else{s.rest+=p.collect||0;if(p.st=='fail')s.fail++;else if(p.st=='pickup')s.pick++;else s.pend++}});return s}
+function sumH(s){return '<div class="st">'+[['الطرود',s.n],['تم التسليم',s.done],['تعذّر',s.fail],['لم يُسلَّم',s.pend],['بالمستودع',s.pick]].map(function(x){return '<div class="s"><b>'+x[1]+'</b><span>'+x[0]+'</span></div>'}).join('')+'</div><div class="box"><div>المطلوب تحصيله: <b>'+s.exp+' €</b></div><div>تم تحصيله كاش: <b>'+s.cash+' €</b> · تحويل بنكي: <b>'+s.bank+' €</b> · منتهي: <b>'+s.paid+' €</b></div><div>متبقي لم يُسلَّم: <b style="color:'+(s.rest?'var(--err)':'var(--ok)')+'">'+s.rest+' €</b></div>'+Object.keys(s.vk).map(function(k){return '<div class="mut">كاش عند '+E(V[k]?V[k].n:'?')+': '+s.vk[k]+' €</div>'}).join('')+'</div>'}
+function arcH(){var ts=Object.keys(TR).filter(function(n){return TR[n].archived_at}).sort(function(a,b){return TR[b].archived_at>TR[a].archived_at?1:-1});
+ if(av&&TR[av]&&TR[av].archived_at)return arcD(av);
+ return '<div class="box"><h2>أرشيف الرحلات</h2><div class="mut">'+ts.length+' رحلة محفوظة. اضغط "فتح" للتأكد من التسليم والمبالغ.</div></div>'+ts.map(function(n){var s=sumT(AR.filter(function(p){return p.trip==n}));
+  return '<div class="job"><div class="top"><b>رحلة '+E(n)+'</b><span class="mut">'+E(TR[n].trip_date||'')+'</span></div>'+sumH(s)+'<button class="btn" data-n="'+E(n)+'" onclick="av=this.dataset.n;sq=\'\';af=\'\';R()">فتح</button></div>'}).join('')}
+function arcD(n){var L=AR.filter(function(p){return p.trip==n}),s=sumT(L),q=(sq||'').toLowerCase(),
+ F=L.filter(function(p){return p.st!='split'&&(!af||p.st==af)&&(!q||[p.code,p.name,p.tel,p.addr].join(' ').toLowerCase().indexOf(q)>-1)}).sort(cmp);
+ return '<div class="box"><button class="btn g" onclick="av=\'\';R()">‹ الأرشيف</button> <b>رحلة '+E(n)+'</b> <span class="mut">'+E(TR[n].trip_date||'')+'</span><br><button class="btn" onclick="rep(AR.filter(function(p){return p.trip==av}))">ملخص PDF</button><button class="btn g" onclick="restT()">إرجاع للرحلات</button><button class="btn er" onclick="delT(true)">حذف نهائي</button></div>'+sumH(s)
+ +'<div class="box"><input type="text" id="sq" placeholder="بحث بالرمز أو الاسم" value="'+E(sq)+'" style="width:100%;margin-bottom:6px"><select onchange="af=this.value;sq=$(\'#sq\').value;R()">'+[['','كل الحالات'],['done','تم التسليم'],['fail','تعذّر'],['assigned','معيّن'],['onway','بالطريق'],['pickup','بالمستودع']].map(function(x){return '<option value="'+x[0]+'"'+(x[0]==af?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select> <button class="btn" onclick="sq=$(\'#sq\').value;R()">بحث</button></div>'
+ +'<div class="box"><div class="tw"><table style="min-width:760px"><tr><th>الرمز</th><th>الاسم</th><th>كغ</th><th>التحصيل</th><th>الحالة</th><th>الوقت</th><th>ملاحظة وصورة</th></tr>'+F.map(function(p){return '<tr><td>'+E(p.code)+'</td><td>'+E(p.name)+'</td><td>'+p.w+'</td><td>'+p.collect+'</td><td><span class="tag '+p.st+'">'+S[p.st]+'</span>'+(p.pay?' '+PY[p.pay]:'')+(p.reason?'<br>'+E(p.reason):'')+'</td><td>'+E(p.t)+'</td><td>'+E(p.dn)+(p.ph?'<a href="'+p.ph+'" target="_blank" rel="noopener"><img class="th" src="'+p.ph+'"></a>':'')+'</td></tr>'}).join('')+'</table></div></div>'}
+async function arcTrip(){var n=tf;if(!n||!TID[n])return;var u=P.filter(function(p){return p.trip==n&&['new','assigned','onway'].indexOf(p.st)>-1}).length;
+ if(!confirm('حفظ رحلة '+n+' بالأرشيف؟'+(u?'\nفيها '+u+' طرد لسا ما انسلّم.':'')))return;
+ var r=await sb.from('trips').update({archived_at:new Date().toISOString()}).eq('id',TID[n]);if(r.error){alert(r.error.message);return}tf='';await load();R()}
+async function restT(){var n=av;if(!confirm('إرجاع رحلة '+n+' للرحلات النشطة؟'))return;var r=await sb.from('trips').update({archived_at:null}).eq('id',TID[n]);if(r.error){alert(r.error.message);return}av='';tf=n;tab='t';await load();R()}
+async function delT(fa){var n=fa?av:tf;if(!n||!TID[n])return;if(!confirm('حذف رحلة '+n+' نهائياً مع كل طرودها وصورها؟ لا يمكن التراجع.'))return;if(!confirm('تأكيد أخير: حذف رحلة '+n+'؟'))return;
+ var ps=(fa?AR:P).filter(function(p){return p.trip==n&&p.ph}).map(function(p){return p.ph.replace(PH,'')});
+ var r=await sb.from('trips').delete().eq('id',TID[n]);if(r.error){alert(r.error.message);return}
+ if(ps.length)try{await sb.storage.from('delivery-photos').remove(ps)}catch(e){}
+ if(fa)av='';tf='';await load();R()}
+function usrH(){return '<div class="box"><h2>المستخدمون</h2><div class="mut">عدّل الاسم أو اسم الدخول أو السيارة. اكتب كلمة سر جديدة فقط إذا بدك تغيّرها.</div></div>'+PR.map(function(u,i){return '<div class="job"><div class="top"><b>'+(u.role=='admin'?'الإدارة':'سائق')+'</b><span class="mut">'+E(UM[u.id]||'')+'</span></div>'
+ +'<div class="mut">الاسم الظاهر</div><input type="text" id="fn'+i+'" value="'+E(u.full_name||'')+'" style="width:100%">'
+ +'<div class="mut">اسم الدخول (إنجليزي صغير)</div><input type="text" id="un'+i+'" value="'+E(u.username)+'" dir="ltr" autocapitalize="off" style="width:100%">'
+ +(u.role=='driver'?'<div class="mut">السيارة</div><select id="uv'+i+'"><option value="">بدون</option>'+V.map(function(v){return '<option value="'+v.id+'"'+(v.id==u.vehicle_id?' selected':'')+'>'+E(v.n)+'</option>'}).join('')+'</select>':'')
+ +'<div class="mut">كلمة سر جديدة (اختياري)</div><input type="text" id="up'+i+'" dir="ltr" placeholder="8 أحرف على الأقل" autocomplete="off" style="width:100%"><div><button class="btn" onclick="svU('+i+')">حفظ</button></div></div>'}).join('')}
+async function svU(i){var u=PR[i],pw=$('#up'+i).value.trim(),a={p_user:u.id,p_username:$('#un'+i).value,p_full_name:$('#fn'+i).value,p_password:pw||null};
+ if($('#uv'+i)){a.p_set_vehicle=true;a.p_vehicle=$('#uv'+i).value||null}
+ var r=await sb.rpc('admin_update_user',a);UM[u.id]=r.error?'⚠ '+r.error.message:'✓ تم الحفظ'+(pw?' · كلمة السر الجديدة: '+pw:'');await refU();R()}
+async function refU(){var vs=(await sb.from('vehicles').select('id').order('sort_order')).data||[],vi={};vs.forEach(function(v,i){vi[v.id]=i});
+ PR=(await sb.from('profiles').select('*').order('role')).data||[];U={};PR.forEach(function(p){U[p.username]={r:p.role=='admin'?'a':'d',v:vi[p.vehicle_id],n:p.full_name||p.username}});
+ var m=PR.find(function(p){return p.id==MYID});if(m)me=m.username}
 async function boot(){var s=(await sb.auth.getSession()).data.session;if(!s){R();return}
- var vs=(await sb.from('vehicles').select('id').order('sort_order')).data||[],vi={};vs.forEach(function(v,i){vi[v.id]=i});
- var pr=(await sb.from('profiles').select('*')).data||[];U={};pr.forEach(function(p){U[p.username]={r:p.role=='admin'?'a':'d',v:vi[p.vehicle_id],n:p.full_name||p.username}});
- var m=pr.find(function(p){return p.id==s.user.id});if(!m){await sb.auth.signOut();msg='الحساب غير مفعّل';R();return}
- me=m.username;tab='d';try{await load()}catch(e){msg=e.message}R()}
+ MYID=s.user.id;await refU();if(!PR.find(function(p){return p.id==MYID})){await sb.auth.signOut();msg='الحساب غير مفعّل';R();return}
+ tab='d';try{await load()}catch(e){msg=e.message}R()}
 async function out(){await sb.auth.signOut();me=null;P=[];msg='';R()}
 async function init(){await boot();setInterval(async function(){if(!me)return;var a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;var o=JSON.stringify(P);try{await load()}catch(e){return}if(JSON.stringify(P)!=o)R()},8000)}
 init();
