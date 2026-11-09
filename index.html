@@ -576,8 +576,8 @@ async function bioOn(){if(!bioOK()){alert('جهازك أو متصفحك لا ي�
  try{var c=await navigator.credentials.create({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),rp:{name:'T.K Group'},user:{id:new TextEncoder().encode(String(MYID||me||'u')),name:me||'user',displayName:(U[me]&&U[me].n)||me||'user'},pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},timeout:60000}});
   localStorage.setItem(BK,JSON.stringify({u:MYID,id:b64(c.rawId)}));alert('تم تفعيل القفل بالبصمة على هذا الجهاز');R()}catch(e){alert('تعذّر التفعيل: '+(e.message||e))}}
 function bioOff(){if(!confirm('إيقاف القفل بالبصمة؟'))return;localStorage.removeItem(BK);R()}
-function bioBtn(){var h=document.querySelector('header');if(!h||!me||!bioOK()||h.querySelector('#bb'))return;var on=bioSt();
- h.insertAdjacentHTML('beforeend','<button class="btn g" id="bb" style="padding:4px 10px;font-size:13px" onclick="'+(on?'bioOff()':'bioOn()')+'">'+(on?'🔐 البصمة مفعّلة':'🔐 تفعيل البصمة')+'</button>')}
+function bioBtn(){var n=document.querySelector('nav');if(!n||!me||n.querySelector('#bb'))return;var on=bioSt();
+ n.insertAdjacentHTML('beforeend','<button id="bb" onclick="'+(on?'bioOff()':'bioOn()')+'">'+(on?'🔐 البصمة ✓':'🔐 تفعيل البصمة')+'</button>')}
 async function bioGet(){var d=null;try{d=JSON.parse(localStorage.getItem(BK)||'null')}catch(e){}if(!d)return true;
  try{await navigator.credentials.get({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),allowCredentials:[{type:'public-key',id:ub64(d.id),transports:['internal']}],userVerification:'required',timeout:60000}});return true}catch(e){return false}}
 async function unlock(){if(await bioGet()){var o=$('#lk');if(o)o.style.display='none'}}
