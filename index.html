@@ -563,8 +563,31 @@ async function delRR(id){if(!confirm('حذف هالجولة من الأرشيف�
 /* ---- جداول الموبايل: بطاقات بدل تمرير أفقي ---- */
 function lbl(){document.querySelectorAll('.tw table').forEach(function(t){var h=t.querySelector('tr');if(!h)return;var L=Array.prototype.map.call(h.children,function(c){return c.textContent.trim()});
  t.querySelectorAll('tr').forEach(function(r,i){if(!i)return;Array.prototype.forEach.call(r.children,function(c,k){if(c.tagName=='TD'&&L[k])c.setAttribute('data-label',L[k])})})})}
-var R_old=R;R=function(){R_old();lbl()};
+var R_old=R;R=function(){R_old();lbl();bioBtn()};
 var sa0=sa;sa=function(v){sa0(v);lbl()};
+
+/* ---- قفل التطبيق بالبصمة / Face ID (WebAuthn، محلي على الجهاز) ---- */
+var BK='tkbio',HT=0;
+function b64(b){return btoa(String.fromCharCode.apply(null,new Uint8Array(b)))}
+function ub64(s){return Uint8Array.from(atob(s),function(c){return c.charCodeAt(0)})}
+function bioOK(){return !!(window.PublicKeyCredential&&navigator.credentials&&window.isSecureContext)}
+function bioSt(){try{var d=JSON.parse(localStorage.getItem(BK)||'null');return !!(d&&d.u==MYID)}catch(e){return false}}
+async function bioOn(){if(!bioOK()){alert('جهازك أو متصفحك لا يدعم البصمة، أو الصفحة مو على HTTPS');return}
+ try{var c=await navigator.credentials.create({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),rp:{name:'T.K Group'},user:{id:new TextEncoder().encode(String(MYID||me||'u')),name:me||'user',displayName:(U[me]&&U[me].n)||me||'user'},pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},timeout:60000}});
+  localStorage.setItem(BK,JSON.stringify({u:MYID,id:b64(c.rawId)}));alert('تم تفعيل القفل بالبصمة على هذا الجهاز');R()}catch(e){alert('تعذّر التفعيل: '+(e.message||e))}}
+function bioOff(){if(!confirm('إيقاف القفل بالبصمة؟'))return;localStorage.removeItem(BK);R()}
+function bioBtn(){var h=document.querySelector('header');if(!h||!me||!bioOK()||h.querySelector('#bb'))return;var on=bioSt();
+ h.insertAdjacentHTML('beforeend','<button class="btn g" id="bb" style="padding:4px 10px;font-size:13px" onclick="'+(on?'bioOff()':'bioOn()')+'">'+(on?'🔐 البصمة مفعّلة':'🔐 تفعيل البصمة')+'</button>')}
+async function bioGet(){var d=null;try{d=JSON.parse(localStorage.getItem(BK)||'null')}catch(e){}if(!d)return true;
+ try{await navigator.credentials.get({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),allowCredentials:[{type:'public-key',id:ub64(d.id),transports:['internal']}],userVerification:'required',timeout:60000}});return true}catch(e){return false}}
+async function unlock(){if(await bioGet()){var o=$('#lk');if(o)o.style.display='none'}}
+function bioPw(){localStorage.removeItem(BK);var o=$('#lk');if(o)o.style.display='none';out()}
+function lockUI(){if(!localStorage.getItem(BK)||!bioOK())return;var o=$('#lk');
+ if(!o){o=document.createElement('div');o.id='lk';o.style.cssText='position:fixed;inset:0;z-index:100;background:#0a121a;color:#e8ecee;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center';document.body.appendChild(o)}
+ o.style.display='flex';o.innerHTML='<img src="'+LOGO+'" style="width:140px"><div>التطبيق مقفل</div><button class="btn" onclick="unlock()">🔓 افتح بالبصمة / Face ID</button><button class="btn g" style="color:#fff!important" onclick="bioPw()">دخول بكلمة السر</button>';unlock()}
+document.addEventListener('visibilitychange',function(){if(document.hidden)HT=Date.now();else if(HT&&Date.now()-HT>30000&&me)lockUI()});
+var out0=out;out=async function(){localStorage.removeItem(BK);await out0()};
+lockUI();
 
 </script>
 </body>
