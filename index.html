@@ -495,12 +495,16 @@ var LSV={rows:[],date:'',name:'',blob:null};
 function r2(x){return Math.round((+x||0)*100)/100}
 function lsDate(t){var T=TR[t]||{};return T.trip_date?T.trip_date.split('-').reverse().join('.'):new Date().toLocaleDateString('de-DE')}
 function lsRows(n){var g={},o=[];P.concat(AR).filter(function(p){return p.trip==n&&p.st!='split'}).forEach(function(p){var k=p.base||p.code;if(!g[k]){g[k]={c:k,a:de(p.content),q:0,w:0};o.push(g[k])}g[k].q+=+p.q||0;g[k].w+=+p.w||0});return o}
-function lsEd(i){var p=P.concat(AR)[i],k=p.base||p.code;LSV={rows:[{c:k,a:de(p.content),q:p.q,pp:'',w:r2(p.w)}],date:lsDate(p.trip),name:k,blob:null};lsFrm()}
+function lsEd(i){var p=P.concat(AR)[i],k=p.base||p.code;LSV={rows:[{c:k,a:de(p.content),q:p.q,pp:ppd(p.q,p.w),w:r2(p.w)}],date:lsDate(p.trip),name:k,blob:null};lsFrm()}
 function lsTrip(){var n=($('#lstrip')||{}).value;if(!n){alert('اختر رحلة');return}var r=lsRows(n);if(!r.length){alert('لا توجد طرود');return}
- LSV={rows:r.map(function(x){return{c:x.c,a:x.a,q:x.q,pp:'',w:r2(x.w)}}),date:lsDate(n),name:'Trip-'+n,blob:null};lsFrm()}
-function lsRd(){var d=$('#lsd');if(d)LSV.date=d.value;LSV.rows=LSV.rows.map(function(r,k){var g=function(x){var e=$('#lr'+k+x);return e?e.value:''};return{c:(LSV.rows[k]||{}).c||'',a:g('a'),q:+g('q')||0,pp:g('p'),w:+g('w')||0}})}
+ LSV={rows:r.map(function(x){return{c:x.c,a:x.a,q:x.q,pp:ppd(x.q,x.w),w:r2(x.w)}}),date:lsDate(n),name:'Trip-'+n,blob:null};lsFrm()}
+function ppd(q,w){q=+q;w=+w;return q>0&&w>0?String(r2(w/q)):''}
+function lsRd(){var d=$('#lsd');if(d)LSV.date=d.value;var ac=document.activeElement&&document.activeElement.id;
+ LSV.rows=LSV.rows.map(function(r,k){var g=function(x){var e=$('#lr'+k+x);return e?e.value:''},q=+g('q')||0,pp=g('p'),n=parseFloat(String(pp).replace(',','.')),w=+g('w')||0;
+  if(ac==='lr'+k+'w'){pp=ppd(q,w)}else if(n>0&&q>0)w=r2(q*n);
+  return{c:(LSV.rows[k]||{}).c||'',a:g('a'),q:q,pp:pp,w:w}})}
 function lsTot(){var q=0,w=0;LSV.rows.forEach(function(r){q+=r.q;w+=r.w});return{q:q,w:r2(w)}}
-function lsCalc(){lsRd();var t=lsTot(),e=$('#lstot');if(e)e.textContent='المجموع: '+t.q+' طرد · '+t.w+' كغ'}
+function lsCalc(){lsRd();var ac=document.activeElement&&document.activeElement.id;LSV.rows.forEach(function(r,k){var e=$('#lr'+k+'w'),f=$('#lr'+k+'p');if(e&&ac!=='lr'+k+'w')e.value=r.w;if(f&&ac!=='lr'+k+'p')f.value=r.pp});var t=lsTot(),e=$('#lstot');if(e)e.textContent='المجموع: '+t.q+' طرد · '+t.w+' كغ'}
 function lsAdd(){lsRd();LSV.rows.push({c:'',a:'',q:1,pp:'',w:0});lsFrm()}
 function lsDel(k){lsRd();LSV.rows.splice(k,1);lsFrm()}
 function lsFrm(){var m=$('#md');m.style.display='block';
@@ -509,7 +513,7 @@ function lsFrm(){var m=$('#md');m.style.display='block';
  +'<button class="btn g" onclick="lsAdd()">+ بند</button><div id="lstot" class="mut"></div><div><button class="btn ok" onclick="lsMake()">إنشاء PDF</button><button class="btn g" onclick="$(\'#md\').style.display=\'none\'">إغلاق</button></div><div id="lsm" class="mut"></div></div>';lsCalc()}
 function lsHtml(){var t=lsTot(),R0=LSV.rows,e=E,f=function(x){return x===''||x==null?'':String(r2(x))},
  td='border:1px solid #000;height:23px;padding:0 4px;font-size:10px;font-weight:700;text-align:center;',
- th=td+'text-decoration:underline;font-weight:700;',n=Math.max(18,R0.length),rows='';
+ th=td+'text-decoration:underline;font-weight:700;',n=Math.max(Math.min(18,26-R0.length),R0.length),rows='';
  for(var k=0;k<n;k++){var x=R0[k];rows+=x?'<tr><td style="'+td+'">'+e(x.a)+'</td><td style="'+td+'">'+x.q+'</td><td style="'+td+'">'+e(x.pp)+'</td><td style="'+td+'">'+f(x.w)+'</td></tr>':'<tr>'+('<td style="'+td+'"></td>').repeat(4)+'</tr>'}
  var big=td+'background:#ffff00;font-size:14px;height:26px;';
  return '<div style="padding:70px 82px;font:11px Calibri,Carlito,Arial,sans-serif;color:#000;direction:ltr;text-align:left;width:794px;box-sizing:border-box;background:#fff">'
@@ -531,7 +535,7 @@ function invChk(el){IKO[el.dataset.k]=!el.checked;var e=$('#ick');if(e)e.textCon
 function invAll(){var s=invSel();if(!s.length){alert('حدد طرداً واحداً على الأقل');return}var f=s[0],codes=s.map(function(p){return p.base||p.code}).join(' + '),W=0;s.forEach(function(p){W+=+p.w||0});
  IV={p:Object.assign({},f,{base:codes,code:codes,w:r2(W)}),num:null,blob:null,kg:'',b:{n:lat(f.name),a:f.addr||'',t:f.tel||'',s:'',v:''},rows:s.map(function(p){return{n:en(p.content)||p.base||p.code,u:'kg',q:r2(p.w),pr:'',t:7}})};invFrm()}
 function lsAll(){var s=invSel();if(!s.length){alert('حدد طرداً واحداً على الأقل');return}
- LSV={rows:s.map(function(p){return{c:p.base||p.code,a:de(p.content),q:p.q,pp:'',w:r2(p.w)}}),date:lsDate(s[0].trip),name:s.map(function(p){return p.base||p.code}).join('_').replace(/[^\w\-]+/g,'_'),blob:null};lsFrm()}
+ LSV={rows:s.map(function(p){return{c:p.base||p.code,a:de(p.content),q:p.q,pp:ppd(p.q,p.w),w:r2(p.w)}}),date:lsDate(s[0].trip),name:s.map(function(p){return p.base||p.code}).join('_').replace(/[^\w\-]+/g,'_'),blob:null};lsFrm()}
 function invH(){var L=invList(),q=(iq||'').trim(),ts=Object.keys(TR).sort(function(a,b){return (+b)-(+a)}),all=P.concat(AR);
  var h='<div class="box"><b>Lieferschein لرحلة كاملة:</b> <select id="lstrip"><option value="">اختر رحلة</option>'+ts.map(function(t){return '<option value="'+E(t)+'">رحلة '+E(t)+'</option>'}).join('')+'</select> <button class="btn in" onclick="lsTrip()">إنشاء</button></div>'
  +'<div class="box"><h2>الفواتير</h2><input type="text" id="iq" value="'+E(iq)+'" placeholder="رمز أو عدة رموز: G-16, NL30, K5" style="width:65%" onkeydown="if(event.key==\'Enter\'){iq=this.value;R()}"> <button class="btn" onclick="iq=$(\'#iq\').value;R()">بحث</button><div class="mut">رقم الفاتورة القادم: '+(INS?INS.year+'-'+String(INS.next_no).padStart(4,'0'):'—')+' · '+INV.length+' فاتورة محفوظة</div><button class="btn g" onclick="insEd()">بيانات البائع والترقيم</button></div>';
