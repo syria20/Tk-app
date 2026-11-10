@@ -520,9 +520,24 @@ async function lsMake(){lsRd();var ms=$('#lsm');ms.textContent='جاري الإ�
  try{LSV.blob=await mkPdf(lsHtml())}catch(x){ms.textContent='⚠ تعذّر إنشاء PDF: '+x.message;return}
  ms.innerHTML='✓ جاهز <button class="btn g" onclick="dl(LSV.blob,\'Lieferschein-\'+LSV.name+\'.pdf\')">تنزيل PDF</button><button class="btn in" onclick="lsShare()">مشاركة</button>'}
 async function lsShare(){var n='Lieferschein-'+LSV.name+'.pdf',f=new File([LSV.blob],n,{type:'application/pdf'});if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:n});return}catch(x){}}dl(LSV.blob,n)}
-var invH0=invH;invH=function(){var ts=Object.keys(TR).sort(function(a,b){return (+b)-(+a)}),
- top='<div class="box"><b>Lieferschein لرحلة كاملة:</b> <select id="lstrip"><option value="">اختر رحلة</option>'+ts.map(function(t){return '<option value="'+E(t)+'">رحلة '+E(t)+'</option>'}).join('')+'</select> <button class="btn in" onclick="lsTrip()">إنشاء</button></div>';
- return top+invH0().replace(/<button class="btn" onclick="invEd\((\d+)\)">إنشاء فاتورة<\/button>/g,function(m,i){return m+'<button class="btn in" onclick="lsEd('+i+')">Lieferschein</button>'})};
+/* ---- صفحة الفواتير: بحث بعدة رموز + فاتورة/Lieferschein للكل أو لكل رمز ---- */
+var IKO={};
+function invKey(p){return p.trip+'|'+(p.base||p.code)}
+function invList(){var qs=(iq||'').trim();if(!qs)return[];var all=P.concat(AR).filter(function(p){return !p.ch}),terms=qs.split(/[\s,;+]+/).filter(Boolean),o=[];
+ if(terms.length>1){var seen={};terms.map(nm).forEach(function(k){all.forEach(function(p){if(nm(p.base||p.code)==k&&!seen[invKey(p)]){seen[invKey(p)]=1;o.push(p)}})})}
+ if(!o.length){var q=qs.toLowerCase();o=all.filter(function(p){return String(p.base||p.code).toLowerCase().indexOf(q)>-1||String(p.name).toLowerCase().indexOf(q)>-1}).slice(0,60)}return o}
+function invSel(){return invList().filter(function(p){return !IKO[invKey(p)]})}
+function invChk(el){IKO[el.dataset.k]=!el.checked;var e=$('#ick');if(e)e.textContent=invSel().length+' محدد من '+invList().length}
+function invAll(){var s=invSel();if(!s.length){alert('حدد طرداً واحداً على الأقل');return}var f=s[0],codes=s.map(function(p){return p.base||p.code}).join(' + '),W=0;s.forEach(function(p){W+=+p.w||0});
+ IV={p:Object.assign({},f,{base:codes,code:codes,w:r2(W)}),num:null,blob:null,kg:'',b:{n:lat(f.name),a:f.addr||'',t:f.tel||'',s:'',v:''},rows:s.map(function(p){return{n:en(p.content)||p.base||p.code,u:'kg',q:r2(p.w),pr:'',t:7}})};invFrm()}
+function lsAll(){var s=invSel();if(!s.length){alert('حدد طرداً واحداً على الأقل');return}
+ LSV={rows:s.map(function(p){return{c:p.base||p.code,q:p.q,pp:'-',w:r2(p.w)}}),date:lsDate(s[0].trip),name:s.map(function(p){return p.base||p.code}).join('_').replace(/[^\w\-]+/g,'_'),blob:null};lsFrm()}
+function invH(){var L=invList(),q=(iq||'').trim(),ts=Object.keys(TR).sort(function(a,b){return (+b)-(+a)}),all=P.concat(AR);
+ var h='<div class="box"><b>Lieferschein لرحلة كاملة:</b> <select id="lstrip"><option value="">اختر رحلة</option>'+ts.map(function(t){return '<option value="'+E(t)+'">رحلة '+E(t)+'</option>'}).join('')+'</select> <button class="btn in" onclick="lsTrip()">إنشاء</button></div>'
+ +'<div class="box"><h2>الفواتير</h2><input type="text" id="iq" value="'+E(iq)+'" placeholder="رمز أو عدة رموز: G-16, NL30, K5" style="width:65%" onkeydown="if(event.key==\'Enter\'){iq=this.value;R()}"> <button class="btn" onclick="iq=$(\'#iq\').value;R()">بحث</button><div class="mut">رقم الفاتورة القادم: '+(INS?INS.year+'-'+String(INS.next_no).padStart(4,'0'):'—')+' · '+INV.length+' فاتورة محفوظة</div><button class="btn g" onclick="insEd()">بيانات البائع والترقيم</button></div>';
+ if(L.length>1)h+='<div class="box"><b id="ick">'+invSel().length+' محدد من '+L.length+'</b><div class="mut">اختر الطرود بالمربعات ثم:</div><button class="btn ok" onclick="invAll()">🧾 فاتورة واحدة للكل</button><button class="btn in" onclick="lsAll()">📄 Lieferschein واحد للكل</button></div>';
+ return h+L.map(function(p){var iv=INV.filter(function(x){return x.code==(p.base||p.code)}),i=all.indexOf(p);
+  return '<div class="job"><div class="top"><b>'+E(p.base||p.code)+' · '+E(p.name)+'</b><span class="mut">رحلة '+E(p.trip)+'</span></div>'+(L.length>1?'<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-k="'+E(invKey(p))+'" '+(IKO[invKey(p)]?'':'checked ')+'onchange="invChk(this)"> تحديد</label>':'')+'<div class="mut">'+p.q+' طرد · '+p.w+' كغ · '+p.amt+' €</div>'+iv.map(function(x){return '<div class="mut">فاتورة '+E(x.number)+' · '+x.gross+' €'+(x.sent_at?' · أُرسلت ✓':'')+'</div>'}).join('')+'<button class="btn" onclick="invEd('+i+')">إنشاء فاتورة</button><button class="btn in" onclick="lsEd('+i+')">Lieferschein</button></div>'}).join('')+(q&&!L.length?'<div class="box mut">لا نتائج</div>':'')}
 
 /* ---- السائق: جولة واحدة فقط حتى "حفظ وإنهاء الجولة" ---- */
 var isRet0=isRet;
