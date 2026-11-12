@@ -512,14 +512,16 @@ function lsFrm(){var m=$('#md');m.style.display='block';
  +LSV.rows.map(function(r,k){return '<div class="job" style="margin:4px 0"><div class="mut">'+E(r.c||'—')+'</div><input type="text" id="lr'+k+'a" value="'+E(r.a)+'" placeholder="Artikel (Deutsch)" style="width:100%"><div style="display:flex;gap:4px;margin-top:4px"><input type="number" id="lr'+k+'q" value="'+r.q+'" style="width:28%" placeholder="Anzahl der Pakete"><input type="text" id="lr'+k+'p" value="'+E(r.pp)+'" style="width:30%" placeholder="Gewicht per Paket"><input type="number" step="0.01" id="lr'+k+'w" value="'+r.w+'" style="width:32%" placeholder="Gesamtes Gewicht"></div><button class="btn g" onclick="lsDel('+k+')">حذف البند</button></div>'}).join('')
  +'<button class="btn g" onclick="lsAdd()">+ بند</button><div id="lstot" class="mut"></div><div><button class="btn ok" onclick="lsMake()">إنشاء PDF</button><button class="btn g" onclick="$(\'#md\').style.display=\'none\'">إغلاق</button></div><div id="lsm" class="mut"></div></div>';lsCalc()}
 function lsHtml(){var t=lsTot(),R0=LSV.rows,e=E,f=function(x){return x===''||x==null?'':String(r2(x))},
- td='border:1px solid #000;height:23px;padding:0 4px;font-size:10px;font-weight:700;text-align:center;',
- th=td+'text-decoration:underline;font-weight:700;',n=Math.max(Math.min(18,26-R0.length),R0.length),rows='';
- for(var k=0;k<n;k++){var x=R0[k];rows+=x?'<tr><td style="'+td+'">'+e(x.a)+'</td><td style="'+td+'">'+x.q+'</td><td style="'+td+'">'+e(x.pp)+'</td><td style="'+td+'">'+f(x.w)+'</td></tr>':'<tr>'+('<td style="'+td+'"></td>').repeat(4)+'</tr>'}
- var big=td+'background:#ffff00;font-size:14px;height:26px;';
+ td='border:1px solid #000;color:#000;height:23px;padding:0 4px;font-size:10px;font-weight:700;text-align:center;',
+ th=td+'text-decoration:underline;',n=Math.max(Math.min(18,26-R0.length),R0.length),rows='';
+ for(var k=0;k<n;k++){var x=R0[k],pp='';if(x){pp=String(x.pp==null?'':x.pp).trim();if(!pp&&+x.q>0&&+x.w>0)pp=String(r2(x.w/x.q))}
+  rows+=x?'<tr><td style="'+td+'">'+e(x.a)+'</td><td style="'+td+'">'+x.q+'</td><td style="'+td+'">'+e(pp)+'</td><td style="'+td+'">'+f(x.w)+'</td></tr>':'<tr>'+('<td style="'+td+'"></td>').repeat(4)+'</tr>'}
+ var big=td+'font-size:14px;height:26px;',y=big+'background:#ffff00;';
  return '<div style="padding:70px 82px;font:11px Calibri,Carlito,Arial,sans-serif;color:#000;direction:ltr;text-align:left;width:794px;box-sizing:border-box;background:#fff">'
- +'<div style="border:1px solid #000;border-bottom:0;height:222px;box-sizing:border-box;padding:2px 3px"><div style="font-size:12px;font-weight:700;line-height:1.55">Einzelunternehmen:&nbsp; '+e(LS_HEAD.name)+'<br>'+e(LS_HEAD.addr)+'<br>Steuernrummer: '+e(LS_HEAD.tax)+'</div><div style="text-align:center;font-size:11px;font-weight:700;margin-top:56px">Information über die Ladung: '+e(LSV.date)+'</div></div>'
- +'<table style="width:100%;border-collapse:collapse;table-layout:fixed"><colgroup><col style="width:23%"><col style="width:25%"><col style="width:25%"><col style="width:27%"></colgroup><tr>'+['Artikel','Anzahl der Pakete','Gewicht per Paket','Gesamtes Gewicht'].map(function(h){return '<th style="'+th+'">'+h+'</th>'}).join('')+'</tr>'+rows
- +'<tr><td style="'+big+'background:#fff"></td><td style="'+big+'">'+t.q+'</td><td style="'+big+'background:#fff"></td><td style="'+big+'">'+t.w+'</td></tr></table></div>'}
+ +'<table style="width:100%;border-collapse:collapse;table-layout:fixed;color:#000"><colgroup><col style="width:23%"><col style="width:25%"><col style="width:25%"><col style="width:27%"></colgroup>'
+ +'<tr><td colspan="4" style="border:1px solid #000;color:#000;height:222px;vertical-align:top;text-align:left;padding:2px 3px"><div style="font-size:12px;font-weight:700;line-height:1.55">Einzelunternehmen:&nbsp; '+e(LS_HEAD.name)+'<br>'+e(LS_HEAD.addr)+'<br>Steuernrummer: '+e(LS_HEAD.tax)+'</div><div style="text-align:center;font-size:11px;font-weight:700;margin-top:56px">Information über die Ladung: '+e(LSV.date)+'</div></td></tr>'
+ +'<tr>'+['Artikel','Anzahl der Pakete','Gewicht per Paket','Gesamtes Gewicht'].map(function(h){return '<th style="'+th+'">'+h+'</th>'}).join('')+'</tr>'+rows
+ +'<tr><td style="'+big+'font-size:11px">Gesamtsumme</td><td style="'+y+'">'+t.q+'</td><td style="'+big+'"></td><td style="'+y+'">'+t.w+'</td></tr></table></div>'}
 async function lsMake(){lsRd();var ms=$('#lsm');ms.textContent='جاري الإنشاء...';
  try{LSV.blob=await mkPdf(lsHtml())}catch(x){ms.textContent='⚠ تعذّر إنشاء PDF: '+x.message;return}
  ms.innerHTML='✓ جاهز <button class="btn g" onclick="dl(LSV.blob,\'Lieferschein-\'+LSV.name+\'.pdf\')">تنزيل PDF</button><button class="btn in" onclick="lsShare()">مشاركة</button>'}
