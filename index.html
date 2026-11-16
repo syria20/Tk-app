@@ -567,7 +567,7 @@ function thH(){return MS.length?MS.map(function(m){var o=m.sender_id==MYID,c,u=m
  if(m.kind=='image'&&u)c='<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" style="max-width:100%;border-radius:8px"></a>';
  else if(m.kind=='audio'&&u)c='<audio controls preload="none" src="'+u+'" style="max-width:100%"></audio>';
  else if(m.kind=='loc')c='<a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+m.lat+','+m.lng+'">📍 الموقع الحالي</a>';
- else c=E(m.body);
+ else c=E(m.body)+trSlot(m);
  return '<div style="display:flex;justify-content:'+(o?'flex-start':'flex-end')+';margin:4px 0"><div style="max-width:80%;padding:6px 10px;border-radius:12px;background:'+(o?'var(--yel)':'var(--bd)')+';color:'+(o?'#101c26':'var(--tx)')+'">'+c+'<div style="font-size:11px;opacity:.7">'+new Date(m.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'</div></div></div>'}).join(''):'<div class="mut">لا توجد رسائل بعد</div>'}
 var chatH0=chatH;chatH=function(){var b='<button class="btn" onclick="sendM()">إرسال</button>';
  return chatH0().replace('display:flex;gap:6px;margin-top:8px','display:flex;flex-wrap:wrap;gap:6px;margin-top:8px').split(b).join(b+'<button class="btn g" id="rbtn" onclick="recM()">'+(REC?'⏹ إيقاف وإرسال':'🎤')+'</button><label class="btn g">📷<input type="file" accept="image/*" hidden onchange="sendImg(this)"></label><button class="btn g" onclick="sendLoc()">📍</button>')};
@@ -650,6 +650,93 @@ function de(s){s=nrm(s);var it=[],u=function(x){if(x&&it.indexOf(x)<0)it.push(x)
 function deClean(a){return String(a||'').split(/\s*,\s*/).filter(function(x){return x&&!hasAr(x)}).join(', ')}
 
 function fixAr(s){return String(s||'').replace(/[؀-ۿ]+/g,function(w){var d=de(w);return hasAr(d)?'':d}).replace(/\s{2,}/g,' ').replace(/\s+([,)])/g,'$1').replace(/,\s*,/g,',').replace(/^[\s,+\-]+|[\s,+\-]+$/g,'')}
+
+
+/* ================= 1) ترتيب أقصر مسار + الوقت المتوقع ================= */
+var ETA={},SVC=6;
+function pk(p){return p.id||p.code}
+function fmtT(d){return d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}
+function isAct(p){return ['new','assigned','onway'].indexOf(p.st)>-1}
+async function osrm(path){var r=await fetch('https://router.project-osrm.org/'+path);if(!r.ok)throw new Error('osrm '+r.status);return r.json()}
+function cstr(a){return a.map(function(q){return q.lng.toFixed(5)+','+q.lat.toFixed(5)}).join(';')}
+function startPt(g){var d=g.stops.filter(function(p){return(p.st=='done'||p.st=='fail')&&hasGeo(p)});
+ if(U[me].r!='a'&&typeof MYPOS!='undefined'&&MYPOS)return{lat:MYPOS.lat,lng:MYPOS.lng};return d.length?d[d.length-1]:WH}
+async function optGroup(g){var rem=g.stops.filter(function(p){return isAct(p)&&hasGeo(p)}),onw=rem.filter(function(p){return p.st=='onway'}),fr=rem.filter(function(p){return p.st!='onway'});
+ if(fr.length<2)return 0;var st=onw.length?onw[onw.length-1]:startPt(g),pts=[st].concat(fr),ord=null;
+ try{var j=await osrm('trip/v1/driving/'+cstr(pts)+'?source=first&roundtrip=true&overview=false');
+  if(j.code=='Ok'&&j.waypoints&&j.waypoints.length==pts.length){ord=j.waypoints.map(function(w,i){return{i:i,w:w.waypoint_index}}).slice(1).sort(function(a,b){return a.w-b.w}).map(function(x){return fr[x.i-1]})}}catch(e){}
+ if(!ord){ord=[];var cur=st,L=fr.slice();while(L.length){var b=0;L.forEach(function(p,k){if(hav(cur,p)<hav(cur,L[b]))b=k});cur=L[b];ord.push(L.splice(b,1)[0])}}
+ var all=onw.concat(ord),sq=all.map(function(p){return p.seq||0}).sort(function(a,b){return a-b}),n=0;
+ for(var k=0;k<all.length;k++){var p=all[k];if(p.seq!=sq[k]){p.seq=sq[k];n++;if(p.id)await sb.from('parcels').update({seq:p.seq}).eq('id',p.id)}}
+ return n}
+async function etaGroup(g){var rem=g.stops.filter(function(p){return isAct(p)&&hasGeo(p)});if(!rem.length)return;
+ var pts=[startPt(g)].concat(rem,[WH]);
+ try{var j=await osrm('route/v1/driving/'+cstr(pts)+'?overview=false');if(j.code!='Ok')return;var lg=j.routes[0].legs,t=Date.now();
+  rem.forEach(function(p,i){var pr=rem[i-1],same=pr&&pr.lat==p.lat&&pr.lng==p.lng;if(!same){t+=lg[i].duration*1000}ETA[pk(p)]=new Date(t);if(!same||i==0)t+=SVC*60000})}catch(e){}}
+async function optRoute(){var st=function(t){var e=$('#gs');if(e)e.textContent=t};
+ if(!window.WH){alert('موقع المستودع غير جاهز');return}
+ st('⏳ جاري الترتيب...');var ch=0,bad=0,gs=mapGroups();
+ try{
+  for(var g of gs)ch+=await optGroup(g);
+  await load();gs=mapGroups();ETA={};var seen={};
+  for(var g of gs){if(seen[g.v])continue;if(g.stops.some(isAct)){seen[g.v]=1;await etaGroup(g)}}
+ }catch(e){bad=1}
+ GEO.last=bad?'⚠ تعذّر الاتصال بخدمة المسارات، جرّب لاحقاً':'✓ تم الترتيب'+(ch?' (تغيّر ترتيب '+ch+' طرد)':' (الترتيب كان مناسباً)')+' · الأوقات تقريبية';R()}
+function etaBox(){var rows=[];mapGroups().forEach(function(g){g.stops.forEach(function(p,i){var e=ETA[pk(p)];if(e)rows.push('<tr><td>'+(i+1)+'</td><td>'+E(p.code)+'</td><td>'+E(p.name)+'</td><td><b>~'+fmtT(e)+'</b></td></tr>')})});
+ return rows.length?'<div class="box"><b>الأوقات المتوقعة للوصول</b><div class="mut">حسب لحظة الحساب · القيادة + '+SVC+' دقائق لكل محطة</div><div class="tw"><table><tr><th>#</th><th>الرمز</th><th>الاسم</th><th>الوقت</th></tr>'+rows.join('')+'</table></div></div>':''}
+var mapH0=mapH;mapH=function(){var h=mapH0(),b='<button class="btn in" onclick="optRoute()">🧭 ترتيب أقصر مسار + الأوقات</button> ';
+ h=h.replace('<div id="gs"',b+'<div id="gs"');var k=h.indexOf('<div id="map"');return k>-1?h.slice(0,k)+etaBox()+h.slice(k):h};
+
+/* ================= 2) ترجمة الدردشة ================= */
+var TRL=null,TRC={},TRQ={};try{TRL=localStorage.getItem('trl')}catch(e){}
+function trLang(){return TRL!==null&&TRL!==undefined?TRL:(U[me]&&U[me].r=='a'?'ar':'de')}
+async function trText(t,to){var k=to+'|'+t;if(TRC[k]!==undefined)return TRC[k];var r=null;
+ try{var x=await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl='+to+'&dt=t&q='+encodeURIComponent(t));var j=await x.json();r=(j[2]==to||String(j[2]).split('-')[0]==to)?'':j[0].map(function(a){return a[0]}).join('')}catch(e){}
+ if(r===null){try{var s=hasAr(t)?'ar':(to=='ar'?'de':'ar');if(s==to){r=''}else{var y=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(t)+'&langpair='+s+'|'+to),w=await y.json();r=w.responseData&&w.responseData.translatedText||''}}catch(e){}}
+ TRC[k]=r===null?'':r;return TRC[k]}
+function trSlot(m){var to=trLang();if(!to||to=='off'||!m.body||m.sender_id==MYID||(m.kind&&m.kind!='text'))return'';var k=to+'|'+m.body,v=TRC[k],sty='margin-top:4px;padding-top:4px;border-top:1px dashed currentColor;font-size:13px;opacity:.85';
+ if(v!==undefined)return v&&v!=m.body?'<div style="'+sty+'">🌐 '+E(v)+'</div>':'';
+ if(!TRQ[k]){TRQ[k]=1;trText(m.body,to).then(function(){delete TRQ[k];var th=$('#th');if(th){var s=th.scrollTop,end=s+th.clientHeight>=th.scrollHeight-40;th.innerHTML=thH();th.scrollTop=end?th.scrollHeight:s}})}
+ return '<div style="'+sty+'">🌐 …</div>'}
+function trSet(v){TRL=v;try{localStorage.setItem('trl',v)}catch(e){}var t=$('#th');if(t){t.innerHTML=thH();t.scrollTop=t.scrollHeight}}
+function trBar(){var l=trLang();return '<div class="box" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="mut">🌐 ترجمة الرسائل الواردة إلى:</span><select onchange="trSet(this.value)">'+[['off','بدون ترجمة'],['ar','العربية'],['de','Deutsch'],['en','English'],['tr','Türkçe'],['uk','Українська'],['ru','Русский']].map(function(o){return '<option value="'+o[0]+'"'+(o[0]==l?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></div>'}
+var chatH2=chatH;chatH=function(){var h=chatH2();return h.indexOf('id="th"')>-1?trBar()+h:h};
+
+/* ================= 3) سؤال صوتي: وين طرد G-16؟ ================= */
+var VL={'جي':'g','كي':'k','ان':'n','ال':'l','ام':'m','اي':'e','ايه':'a','اس':'s','دي':'d','بي':'b','سي':'c','تي':'t','اف':'f','اتش':'h','جاي':'j','او':'o','كيو':'q','ار':'r','يو':'u','فيي':'v','دبليو':'w','اكس':'x','واي':'y','زد':'z'};
+function vNorm(s){s=nrm(String(s||'')).toLowerCase().replace(/[٠-٩]/g,function(d){return '٠١٢٣٤٥٦٧٨٩'.indexOf(d)});
+ return s.split(/[\s\-_.,،؟?!:؛]+/).map(function(w){return w in VL?VL[w]:(/^[a-z0-9]+$/.test(w)?w:'')}).join('')}
+function vFind(txt){var q=vNorm(txt),all=P.concat(AR).filter(function(p){return p.st!='split'}),m={},k;
+ all.forEach(function(p){var c=String(p.base||p.code).toLowerCase().replace(/[^a-z0-9]/g,'');if(c.length>=2&&q.indexOf(c)>-1)m[p.trip+'|'+(p.base||p.code)]=1});
+ if(Object.keys(m).length){var best=0;Object.keys(m).forEach(function(x){best=Math.max(best,x.split('|')[1].length)});}
+ var out=all.filter(function(p){return m[p.trip+'|'+(p.base||p.code)]});
+ if(!out.length){var ws=nrm(txt).toLowerCase().split(/[\s,،؟?!]+/).filter(function(w){return w.length>=3});
+  ws=ws.concat(ws.map(function(w){try{return String(lat(w)).toLowerCase()}catch(e){return ''}}).filter(function(w){return w.length>=3}));if(ws.length)out=all.filter(function(p){var n=nrm(p.name||'').toLowerCase();return ws.some(function(w){return n.indexOf(w)>-1})})}
+ var seen={};return out.filter(function(p){var k=p.trip+'|'+(p.base||p.code);if(seen[k])return false;seen[k]=1;return true}).slice(0,6)}
+function vDrv(p){var v=p.v!=null?V[p.v]:null;if(!v)return null;var pr=PR.find(function(x){return x.vehicle_id==v.id});return{car:v.n,pr:pr}}
+async function vLive(d){if(!d||!d.pr)return '';try{var r=await sb.from('driver_locations').select('*').eq('user_id',d.pr.id).limit(1),l=r.data&&r.data[0];
+ if(!l)return '';var min=Math.round((Date.now()-new Date(l.updated_at))/60000);return ' <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+l.lat+','+l.lng+'">📍 موقع السائق الحالي</a> <span class="mut">(قبل '+min+' د)</span>'}catch(e){return ''}}
+async function vAsk(txt,speak){var el=$('#vr');if(!el)return;el.innerHTML='<div class="mut">⏳</div>';var L=vFind(txt);
+ if(!L.length){el.innerHTML='<div class="box mut">ما لقيت طرد بهالرمز أو الاسم. جرّب تحكي الرمز بشكل أوضح، مثلاً "جي 16"، أو اكتبه.</div>';return}
+ var html='',say=[];
+ for(var p of L){var d=vDrv(p),e=ETA[pk(p)],live=p.st=='onway'||p.st=='assigned'?await vLive(d):'',k=p.base||p.code;
+  html+='<div class="job"><div class="top"><b>'+E(k)+' · '+E(p.name)+'</b><span class="tag '+p.st+'">'+E(S[p.st])+'</span></div>'
+   +'<div class="mut">رحلة '+E(p.trip)+(d?' · '+E(d.car)+(p.rd?' · الجولة '+p.rd:''):' · بدون سيارة')+(e?' · الوصول المتوقع ~'+fmtT(e):'')+'</div>'
+   +(p.addr?'<div>'+E(p.addr)+' <a target="_blank" rel="noopener" href="'+mp(p)+'">🗺 عنوان الزبون</a></div>':'')+(live?'<div>'+live+'</div>':'')
+   +(p.collect?'<div class="mut">تحصيل '+p.collect+' €</div>':'')+'</div>';
+  say.push('طرد '+k+'، '+S[p.st]+(d?'، مع '+d.car:'')+(e?'، الوصول المتوقع الساعة '+fmtT(e):''))}
+ el.innerHTML=html;if(speak)try{var u=new SpeechSynthesisUtterance(say.join('. '));u.lang='ar-SA';speechSynthesis.cancel();speechSynthesis.speak(u)}catch(x){}}
+function vOpen(){var m=$('#md');m.style.display='block';
+ m.innerHTML='<div class="box"><b>🎤 اسأل عن طرد</b><div class="mut">اضغط المايك وقل مثلاً: «وين طرد جي 16؟» أو اكتب الرمز أو اسم الزبون.</div><div style="display:flex;gap:6px;margin:6px 0"><input id="vq" type="text" placeholder="G-16 أو اسم الزبون" style="flex:1" onkeydown="if(event.key==\'Enter\')vAsk(this.value)"><button class="btn" onclick="vAsk($(\'#vq\').value)">بحث</button><button class="btn g" id="vmic" onclick="vMic()">🎤</button></div><div id="vr"></div><button class="btn g" onclick="$(\'#md\').style.display=\'none\'">إغلاق</button></div>'}
+function vMic(){var SR=window.SpeechRecognition||window.webkitSpeechRecognition,el=$('#vr'),b=$('#vmic');
+ if(!SR){el.innerHTML='<div class="box mut">المتصفح ما بيدعم التعرف على الصوت (جرّب Safari أو Chrome). اكتب الرمز بدل ذلك.</div>';return}
+ var r=new SR();r.lang='ar-SA';r.interimResults=false;r.maxAlternatives=4;
+ r.onstart=function(){b.textContent='🔴 عم أسمع...'};r.onend=function(){b.textContent='🎤'};
+ r.onerror=function(e){b.textContent='🎤';el.innerHTML='<div class="box mut">تعذّر التسجيل ('+E(e.error)+'). تأكد من السماح للمايك أو اكتب الرمز.</div>'};
+ r.onresult=function(e){var a=[];for(var i=0;i<e.results[0].length;i++)a.push(e.results[0][i].transcript);var q=$('#vq');if(q)q.value=a[0];vAsk(a.join(' | '),true)};
+ try{r.start()}catch(x){}}
+function vBtn(){var n=document.querySelector('nav');if(!n||!me||n.querySelector('#vb'))return;n.insertAdjacentHTML('beforeend','<button id="vb" onclick="vOpen()">🎤 اسأل</button>')}
+var R_v=R;R=function(){R_v();vBtn()};
 
 </script>
 </body>
