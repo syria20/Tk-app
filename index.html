@@ -703,9 +703,12 @@ function trBar(){var l=trLang();return '<div class="box" style="display:flex;gap
 var chatH2=chatH;chatH=function(){var h=chatH2();return h.indexOf('id="th"')>-1?trBar()+h:h};
 
 /* ================= 3) سؤال صوتي: وين طرد G-16؟ ================= */
+var VLX={ge:'g',gee:'g',ka:'k',kay:'k',en:'n',el:'l',em:'m',be:'b',bee:'b',ce:'c',see:'c',de:'d',dee:'d',ef:'f',eff:'f',ha:'h',aitch:'h',jot:'j',jay:'j',pe:'p',pee:'p',cue:'q',kuh:'q',er:'r',es:'s',ess:'s',te:'t',tee:'t',vau:'v',vee:'v',we:'w',ix:'x',ex:'x',ypsilon:'y',why:'y',zet:'z',zed:'z',zee:'z'};
+var NW={null:0,zero:0,ein:1,eins:1,eine:1,one:1,zwei:2,zwo:2,two:2,drei:3,three:3,vier:4,four:4,fuenf:5,fünf:5,five:5,sechs:6,six:6,sieben:7,seven:7,acht:8,eight:8,neun:9,nine:9,zehn:10,ten:10,elf:11,eleven:11,zwoelf:12,zwölf:12,twelve:12,dreizehn:13,thirteen:13,vierzehn:14,fourteen:14,fuenfzehn:15,fünfzehn:15,fifteen:15,sechzehn:16,sixteen:16,siebzehn:17,seventeen:17,achtzehn:18,eighteen:18,neunzehn:19,nineteen:19,zwanzig:20,twenty:20,dreissig:30,dreißig:30,thirty:30,vierzig:40,forty:40,fuenfzig:50,fünfzig:50,fifty:50,sechzig:60,sixty:60,siebzig:70,seventy:70,achtzig:80,eighty:80,neunzig:90,ninety:90};
+function nwv(w){if(w in NW)return NW[w];var m=/^(.+?)und(.+)$/.exec(w);if(m&&(m[1] in NW)&&(m[2] in NW)&&NW[m[1]]<10&&NW[m[2]]>=20)return NW[m[2]]+NW[m[1]];return null}
 var VL={'جي':'g','كي':'k','ان':'n','ال':'l','ام':'m','اي':'e','ايه':'a','اس':'s','دي':'d','بي':'b','سي':'c','تي':'t','اف':'f','اتش':'h','جاي':'j','او':'o','كيو':'q','ار':'r','يو':'u','فيي':'v','دبليو':'w','اكس':'x','واي':'y','زد':'z'};
 function vNorm(s){s=nrm(String(s||'')).toLowerCase().replace(/[٠-٩]/g,function(d){return '٠١٢٣٤٥٦٧٨٩'.indexOf(d)});
- return s.split(/[\s\-_.,،؟?!:؛]+/).map(function(w){return w in VL?VL[w]:(/^[a-z0-9]+$/.test(w)?w:'')}).join('')}
+ return s.split(/[\s\-_.,،؟?!:؛]+/).map(function(w){if(w in VL)return VL[w];if(w in VLX)return VLX[w];var n=nwv(w);if(n!==null)return String(n);return /^[a-z0-9]+$/.test(w)?w:''}).join('')}
 function vFind(txt){var q=vNorm(txt),all=P.concat(AR).filter(function(p){return p.st!='split'}),m={},k;
  all.forEach(function(p){var c=String(p.base||p.code).toLowerCase().replace(/[^a-z0-9]/g,'');if(c.length>=2&&q.indexOf(c)>-1)m[p.trip+'|'+(p.base||p.code)]=1});
  if(Object.keys(m).length){var best=0;Object.keys(m).forEach(function(x){best=Math.max(best,x.split('|')[1].length)});}
@@ -724,17 +727,26 @@ async function vAsk(txt,speak){var el=$('#vr');if(!el)return;el.innerHTML='<div 
    +'<div class="mut">رحلة '+E(p.trip)+(d?' · '+E(d.car)+(p.rd?' · الجولة '+p.rd:''):' · بدون سيارة')+(e?' · الوصول المتوقع ~'+fmtT(e):'')+'</div>'
    +(p.addr?'<div>'+E(p.addr)+' <a target="_blank" rel="noopener" href="'+mp(p)+'">🗺 عنوان الزبون</a></div>':'')+(live?'<div>'+live+'</div>':'')
    +(p.collect?'<div class="mut">تحصيل '+p.collect+' €</div>':'')+'</div>';
-  say.push('طرد '+k+'، '+S[p.st]+(d?'، مع '+d.car:'')+(e?'، الوصول المتوقع الساعة '+fmtT(e):''))}
- el.innerHTML=html;if(speak)try{var u=new SpeechSynthesisUtterance(say.join('. '));u.lang='ar-SA';speechSynthesis.cancel();speechSynthesis.speak(u)}catch(x){}}
+  var vl=vLang().slice(0,2),SD={new:'neu',assigned:'zugewiesen',onway:'unterwegs',done:'zugestellt',fail:'fehlgeschlagen',pickup:'im Lager'},SE={new:'new',assigned:'assigned',onway:'on the way',done:'delivered',fail:'failed',pickup:'in warehouse'};
+  say.push(vl=='de'?'Paket '+k+', '+(SD[p.st]||'')+(d?', Fahrzeug '+d.car:'')+(e?', voraussichtlich um '+fmtT(e):''):vl=='en'?'Parcel '+k+', '+(SE[p.st]||'')+(d?', vehicle '+d.car:'')+(e?', expected at '+fmtT(e):''):'طرد '+k+'، '+S[p.st]+(d?'، مع '+d.car:'')+(e?'، الوصول المتوقع الساعة '+fmtT(e):''))}
+ el.innerHTML=html;if(speak)try{var u=new SpeechSynthesisUtterance(say.join('. '));u.lang=vLang();speechSynthesis.cancel();speechSynthesis.speak(u)}catch(x){}}
 function vOpen(){var m=$('#md');m.style.display='block';
- m.innerHTML='<div class="box"><b>🎤 اسأل عن طرد</b><div class="mut">اضغط المايك وقل مثلاً: «وين طرد جي 16؟» أو اكتب الرمز أو اسم الزبون.</div><div style="display:flex;gap:6px;margin:6px 0"><input id="vq" type="text" placeholder="G-16 أو اسم الزبون" style="flex:1" onkeydown="if(event.key==\'Enter\')vAsk(this.value)"><button class="btn" onclick="vAsk($(\'#vq\').value)">بحث</button><button class="btn g" id="vmic" onclick="vMic()">🎤</button></div><div id="vr"></div><button class="btn g" onclick="$(\'#md\').style.display=\'none\'">إغلاق</button></div>'}
-function vMic(){var SR=window.SpeechRecognition||window.webkitSpeechRecognition,el=$('#vr'),b=$('#vmic');
+ m.innerHTML='<div class="box"><b>🎤 اسأل عن طرد</b><div class="mut">اضغط المايك وقل مثلاً: «وين طرد جي 16؟» أو اكتب الرمز أو اسم الزبون.</div><div class="mut">لغة الكلام: <select id="vl" onchange="vSet(this.value)">'+[['ar-SA','العربية'],['de-DE','Deutsch'],['en-US','English'],['tr-TR','Türkçe']].map(function(o){return '<option value="'+o[0]+'"'+(o[0]==vLang()?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></div><div style="display:flex;gap:6px;margin:6px 0"><input id="vq" type="text" placeholder="G-16 أو اسم الزبون" style="flex:1" onkeydown="if(event.key==\'Enter\')vAsk(this.value)"><button class="btn" onclick="vAsk($(\'#vq\').value)">بحث</button><button class="btn g" id="vmic" onclick="vMic()">🎤</button></div><div id="vlive" style="min-height:26px;font-size:17px;margin:4px 0"></div><div id="vr"></div><button class="btn g" onclick="if(VREC)try{VREC.stop()}catch(e){}$(\'#md\').style.display=\'none\'">إغلاق</button></div>'}
+function vLang(){var l=null;try{l=localStorage.getItem('vl')}catch(e){}return l||({ar:'ar-SA',de:'de-DE',en:'en-US'}[trLang()]||'de-DE')}
+function vSet(v){try{localStorage.setItem('vl',v)}catch(e){}}
+var VREC=null,VT=null;
+function vMic(){var SR=window.SpeechRecognition||window.webkitSpeechRecognition,el=$('#vr'),b=$('#vmic'),live=$('#vlive');
+ if(VREC){try{VREC.stop()}catch(x){}return}
  if(!SR){el.innerHTML='<div class="box mut">المتصفح ما بيدعم التعرف على الصوت (جرّب Safari أو Chrome). اكتب الرمز بدل ذلك.</div>';return}
- var r=new SR();r.lang='ar-SA';r.interimResults=false;r.maxAlternatives=4;
- r.onstart=function(){b.textContent='🔴 عم أسمع...'};r.onend=function(){b.textContent='🎤'};
- r.onerror=function(e){b.textContent='🎤';el.innerHTML='<div class="box mut">تعذّر التسجيل ('+E(e.error)+'). تأكد من السماح للمايك أو اكتب الرمز.</div>'};
- r.onresult=function(e){var a=[];for(var i=0;i<e.results[0].length;i++)a.push(e.results[0][i].transcript);var q=$('#vq');if(q)q.value=a[0];vAsk(a.join(' | '),true)};
- try{r.start()}catch(x){}}
+ var r=new SR(),last='',done=false;VREC=r;r.lang=($('#vl')||{}).value||vLang();r.interimResults=true;r.continuous=false;r.maxAlternatives=3;
+ r.onstart=function(){b.textContent='⏹ إيقاف';if(live)live.textContent='🎙 احكي، عم أسمعك...'};
+ r.onresult=function(e){var all='',fin=false,alts=[];for(var i=0;i<e.results.length;i++){all+=e.results[i][0].transcript+' ';if(e.results[i].isFinal&&i>=e.resultIndex){fin=true;for(var j=0;j<e.results[i].length;j++)alts.push(e.results[i][j].transcript)}}
+  all=all.trim();last=all;var q=$('#vq');if(q)q.value=all;if(live)live.textContent='🎙 '+all;
+  if(fin&&!done){done=true;clearTimeout(VT);vAsk(alts.length?alts.join(' | '):all,true)}
+  else if(!fin&&!done){clearTimeout(VT);VT=setTimeout(function(){if(!done&&vFind(all).length)vAsk(all,false)},500)}};
+ r.onerror=function(e){if(live)live.textContent=e.error=='no-speech'?'ما سمعت شي، قرّب المايك وجرّب مرة ثانية':e.error=='not-allowed'||e.error=='service-not-allowed'?'المايك غير مسموح. فعّله من إعدادات المتصفح':'تعذّر التسجيل ('+e.error+')'};
+ r.onend=function(){VREC=null;clearTimeout(VT);var bb=$('#vmic');if(bb)bb.textContent='🎤';if(!done&&last){done=true;vAsk(last,true)}};
+ try{r.start()}catch(x){VREC=null}}
 function vBtn(){var n=document.querySelector('nav');if(!n||!me||n.querySelector('#vb'))return;n.insertAdjacentHTML('beforeend','<button id="vb" onclick="vOpen()">🎤 اسأل</button>')}
 var R_v=R;R=function(){R_v();vBtn()};
 
