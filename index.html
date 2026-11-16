@@ -775,29 +775,46 @@ async function geoAll(){if(GEO.run)return;
 
 
 /* ================= توزيع جغرافي: جولات مضغوطة بمسافات أقصر ================= */
-var GCFG={n:2,cap:1700,h:9,far:'sep',prio:'rounds',svc:6,spd:80,geo:true,gls:true,glsw:40,glsq:4};try{var gj=JSON.parse(localStorage.getItem('gcfg')||'null');if(gj&&gj.n>0&&gj.cap>0)GCFG=Object.assign(GCFG,gj)}catch(e){}
+var GCFG={n:2,cap:1700,h:9,far:'sep',prio:'rounds',svc:6,spd:80,geo:true,gls:true,glsw:40,glsq:4,minl:1200,conf:'h'};try{var gj=JSON.parse(localStorage.getItem('gcfg')||'null');if(gj&&gj.n>0&&gj.cap>0)GCFG=Object.assign(GCFG,gj)}catch(e){}
 SVC=GCFG.svc;
 function tourKm(L){var cur=WH,rest=L.slice(),d=0;while(rest.length){var b=0,bd=1e9;rest.forEach(function(p,k){var x=hav(cur,p);if(x<bd){bd=x;b=k}});d+=bd;cur=rest.splice(b,1)[0]}return d+hav(cur,WH)}
 function tourOrder(L){var cur=WH,rest=L.slice(),o=[];while(rest.length){var b=0,bd=1e9;rest.forEach(function(p,k){var x=hav(cur,p);if(x<bd){bd=x;b=k}});cur=rest.splice(b,1)[0];o.push(cur)}return o}
 function rdH(G,far){var ns={},m=0;G.forEach(function(q){ns[q.lat.toFixed(4)+','+q.lng.toFixed(4)]=1;m=Math.max(m,hav(WH,q))});return(far?2*m:tourKm(G))*1.3/(GCFG.spd||80)+Object.keys(ns).length*SVC/60}
 function ovKm(L,p,strict){var lim=GCFG.h;if(!(lim>0)||!hasGeo(p))return false;var G=L.filter(hasGeo).concat([p]);return rdH(G)>(strict?lim:Math.max(lim,rdH(G,1)*1.25))}
-function fillChunks(order,strict){var NV=Math.min(GCFG.n,V.length),ch=[],vi=0,rd=1,ld=0,cur=[];order.forEach(function(p){if((ld>0&&ld+p.w>V[vi].cap)||(cur.length&&ovKm(cur,p,strict))){ch.push({v:vi,rd:rd,L:cur});cur=[];vi++;if(vi>=NV){vi=0;rd++}ld=0}cur.push(p);ld+=+p.w||0});if(cur.length)ch.push({v:vi,rd:rd,L:cur});return ch}
-function chunkCost(ch){var t=0,m=0;ch.forEach(function(c){var d=tourKm(c.L.filter(hasGeo));t+=d;if(d>m)m=d});return{tot:t,max:m,n:ch.length,score:(GCFG.prio=='dist'?0:ch.length*1e6)+t+m}}
+function fillChunks(order,strict,tg){var NV=Math.min(GCFG.n,V.length),ch=[],vi=0,rd=1,ld=0,cur=[];order.forEach(function(p){if((ld>0&&ld+p.w>V[vi].cap)||(cur.length&&ovKm(cur,p,strict))||(tg&&cur.length&&ld>0&&ld+p.w>tg&&(ld+p.w-tg)>(tg-ld))){ch.push({v:vi,rd:rd,L:cur});cur=[];vi++;if(vi>=NV){vi=0;rd++}ld=0}cur.push(p);ld+=+p.w||0});if(cur.length)ch.push({v:vi,rd:rd,L:cur});return ch}
+function chunkCost(ch){var t=0,m=0;ch.forEach(function(c){var d=tourKm(c.L.filter(hasGeo));t+=d;if(d>m)m=d});var lo=0;if(GCFG.minl>0)ch.forEach(function(c){if(chW(c.L)<GCFG.minl)lo++});return{tot:t,max:m,n:ch.length,low:lo,score:lo*1e7+(GCFG.prio=='dist'?0:ch.length*1e6)+t+m}}
 function bearing(p){var dy=p.lat-WH.lat,dx=(p.lng-WH.lng)*Math.cos(WH.lat*Math.PI/180),a=Math.atan2(dx,dy);return a<0?a+2*Math.PI:a}
-function sweepBest(list,strict,ex){ex=ex||[];if(list.length<2)return fillChunks(list.concat(ex),strict);
+function chW(L){return L.reduce(function(s,p){return s+(+p.w||0)},0)}
+function chOver(L,strict){var lim=GCFG.h;if(!(lim>0))return false;var G=L.filter(hasGeo);if(!G.length)return false;return rdH(G)>(strict?lim:Math.max(lim,rdH(G,1)*1.25))}
+function chOv2(L,strict){return GCFG.conf=='w'?false:chOver(L,strict)}
+function balanceChunks(ch,strict){var minL=GCFG.minl||0,NV=Math.min(GCFG.n,V.length),cap=GCFG.cap,ch2=ch;
+ if(minL>0&&ch.length>1){var guard=0,again=true;
+  while(again&&guard++<60){again=false;
+   for(var i=0;i<ch2.length&&!again;i++){var c=ch2[i];if(chW(c.L)>=minL)continue;
+    var best=-1,bd=1e18;[i-1,i+1].forEach(function(j){if(j<0||j>=ch2.length)return;var m=ch2[j].L.concat(c.L);if(chW(m)<=cap&&!chOv2(m,strict)){var d=tourKm(m.filter(hasGeo))-tourKm(ch2[j].L.filter(hasGeo))-tourKm(c.L.filter(hasGeo));if(d<bd){bd=d;best=j}}});
+    if(best>=0){ch2[best].L=best<i?ch2[best].L.concat(c.L):c.L.concat(ch2[best].L);ch2.splice(i,1);again=true;break}
+    [i+1,i-1].forEach(function(j){if(again||j<0||j>=ch2.length)return;var o=ch2[j],mv=0;
+     while(chW(c.L)<minL&&o.L.length>1){var q=j>i?o.L[0]:o.L[o.L.length-1];if(chW(o.L)-q.w<minL||chW(c.L)+q.w>cap)break;var nl=j>i?c.L.concat([q]):[q].concat(c.L);if(chOv2(nl,strict))break;c.L=nl;if(j>i)o.L.shift();else o.L.pop();mv++}
+     if(mv)again=true});
+    if(again)break}}}
+ ch2.forEach(function(c,k){c.v=k%NV;c.rd=Math.floor(k/NV)+1});return ch2}
+function sweepBest(list,strict,ex){ex=ex||[];var TW=chW(list)+chW(ex),KM=Math.max(1,Math.ceil(TW/GCFG.cap)),tgs=[0];
+ if(GCFG.minl>0)[KM,KM+1,KM+2].forEach(function(k){if(TW/k>=Math.min(GCFG.minl,GCFG.cap))tgs.push(TW/k)});
+ var fl=function(o){var r=[];tgs.forEach(function(tg){r.push(balanceChunks(fillChunks(o,strict,tg),strict))});return r};
+ if(list.length<2)return fl(list.concat(ex))[0];
  var sw=list.slice().sort(function(a,b){return bearing(a)-bearing(b)}),step=Math.max(1,Math.floor(sw.length/80)),best=null,bs=1e18;
- [sw,sw.slice().reverse()].forEach(function(sv){for(var s=0;s<sv.length;s+=step){var ch=fillChunks(sv.slice(s).concat(sv.slice(0,s)).concat(ex),strict),c=chunkCost(ch);if(c.score<bs){bs=c.score;best=ch}}});return best}
+ [sw,sw.slice().reverse()].forEach(function(sv){for(var s=0;s<sv.length;s+=step){fl(sv.slice(s).concat(sv.slice(0,s)).concat(ex)).forEach(function(ch){var c=chunkCost(ch);if(c.score<bs){bs=c.score;best=ch}})}});return best}
 function geoAssign(){var L=P.filter(function(p){return p.st=='assigned'&&p.v!=null&&p.rd&&p.st!='split'});if(!L.length)return null;
  var base=L.slice().sort(function(a,b){return RO[a.reg]-RO[b.reg]||ko(a)-ko(b)}),G=L.filter(hasGeo),N=L.filter(function(p){return !hasGeo(p)}),lim=GCFG.h;
  GCFG.h=0;var b0=chunkCost(fillChunks(base));GCFG.h=lim;
  var near=G,far=[];if(lim>0&&GCFG.far!='mix'){near=G.filter(function(p){return rdH([p])<=lim});far=G.filter(function(p){return rdH([p])>lim})}
  var nc=sweepBest(near,GCFG.far!='mix',N),fc=far.length?sweepBest(far,false):[];
- if(!(lim>0)){var bch=fillChunks(base);if(chunkCost(bch).score<chunkCost(nc).score)nc=bch}
+ if(!(lim>0)){var bch=balanceChunks(fillChunks(base),false);if(chunkCost(bch).score<chunkCost(nc).score)nc=bch}
  var off=0;nc.forEach(function(c){if(c.rd>off)off=c.rd});fc.forEach(function(c){c.rd+=off});
  var all=nc.concat(fc),sq=0,rmax=0;all.sort(function(a,b){return a.rd-b.rd||a.v-b.v});
  all.forEach(function(c){if(c.rd>rmax)rmax=c.rd;var o=tourOrder(c.L.filter(hasGeo)).concat(c.L.filter(function(p){return !hasGeo(p)}));o.forEach(function(p){p.v=c.v;p.rd=c.rd;p.st='assigned';p.seq=++sq})});
  var mh=function(ch){return ch.reduce(function(m,c){return Math.max(m,rdH(c.L.filter(hasGeo)))},0)};
- return{before:b0.tot,after:chunkCost(all).tot,nogeo:N.length,rounds:rmax,chunks:all.length,bchunks:b0.n,over:all.filter(function(c){return c.L.reduce(function(s,p){return s+(+p.w||0)},0)>V[c.v].cap}).length,maxkm:all.reduce(function(m,c){return Math.max(m,tourKm(c.L.filter(hasGeo))*1.3)},0),maxh:mh(nc),farn:far.length,farh:mh(fc),nearRounds:off}}
+ return{before:b0.tot,after:chunkCost(all).tot,nogeo:N.length,rounds:rmax,chunks:all.length,bchunks:b0.n,over:all.filter(function(c){return c.L.reduce(function(s,p){return s+(+p.w||0)},0)>V[c.v].cap}).length,maxkm:all.reduce(function(m,c){return Math.max(m,tourKm(c.L.filter(hasGeo))*1.3)},0),maxh:mh(nc),farn:far.length,farh:mh(fc),nearRounds:off,low:all.filter(function(c){return chW(c.L)<(GCFG.minl||0)}).length,minw:all.reduce(function(m,c){return Math.min(m,chW(c.L))},1e9)}}
 function gToast(t){var e=$('#gtoast');if(!e){e=document.createElement('div');e.id='gtoast';e.style.cssText='position:fixed;left:8px;right:8px;bottom:12px;z-index:90;background:#101c26;color:#fff;border:1px solid #f5c518;border-radius:10px;padding:10px;text-align:center';document.body.appendChild(e)}e.style.display=t?'block':'none';e.textContent=t||''}
 async function geoParcels(list,prog){var CC2={DE:'de',NL:'nl',BE:'be',FR:'fr',AT:'at'},CN2={DE:'Germany',NL:'Netherlands',BE:'Belgium',FR:'France',AT:'Austria'},gs={},bad=0,n=0;
  list.forEach(function(p){if(p.st=='split'||p.st=='pickup'||hasGeo(p)||!p.addr)return;var k=p.trip+'|'+(p.base||p.code);(gs[k]=gs[k]||[]).push(p)});
@@ -817,7 +834,7 @@ async function gRun(){if(GEO.run)return;
   if(!res){gToast('');alert('ما في طرود لتوزيعها');return}
   await save();await glsPersist();await load();gToast('');
   var km=function(x){return Math.round(x*1.3)};
-  msg='توزيع جغرافي: مجموع المسافة التقريبية '+km(res.before)+' كم ← '+km(res.after)+' كم · '+res.rounds+' جولة'+(res.bchunks>res.chunks?' (بدل '+Math.ceil(res.bchunks/Math.min(GCFG.n,V.length))+')':'')+(res.over?' · ⚠ '+res.over+' حمولة تتجاوز السعة':'')+' · أطول جولة عادية ~'+(Math.round(res.maxh*10)/10)+' ساعة'+(res.farn?' · '+res.farn+' طرد بعيد (ذهاب وعودة أكتر من '+GCFG.h+' ساعات) بجولات منفصلة بالآخر، أطولها ~'+(Math.round(res.farh*10)/10)+' ساعة':'')+(res.nogeo?' · '+res.nogeo+' طرد بدون موقع':'')+(glsN?' · '+glsN+' طرد تحوّلت لـ GLS':'')+' | '}
+  msg='توزيع جغرافي: مجموع المسافة التقريبية '+km(res.before)+' كم ← '+km(res.after)+' كم · '+res.rounds+' جولة'+(res.bchunks>res.chunks?' (بدل '+Math.ceil(res.bchunks/Math.min(GCFG.n,V.length))+')':'')+(res.over?' · ⚠ '+res.over+' حمولة تتجاوز السعة':'')+' · أطول جولة عادية ~'+(Math.round(res.maxh*10)/10)+' ساعة'+(res.farn?' · '+res.farn+' طرد بعيد (ذهاب وعودة أكتر من '+GCFG.h+' ساعات) بجولات منفصلة بالآخر، أطولها ~'+(Math.round(res.farh*10)/10)+' ساعة':'')+(res.nogeo?' · '+res.nogeo+' طرد بدون موقع':'')+(res.low?' · ⚠ '+res.low+' جولة أقل من '+GCFG.minl+' كغ (أخفها '+Math.round(res.minw)+' كغ، ما أمكن دمجها بدون تجاوز الحمولة أو الساعات)':'')+(glsN?' · '+glsN+' طرد تحوّلت لـ GLS':'')+(GLSR.far?' · بعيد '+GLSR.far+' رمز'+(GLSR.far-glsN>0?' (ما راح GLS: '+GLSR.q+' عدد طرود كبير، '+GLSR.w+' وزن، '+GLSR.oil+' زيت)':''):'')+' | '}
  catch(e){gToast('');alert('خطأ: '+(e.message||e))}finally{GEO.run=0}
  R()}
 var tripH1=tripH;tripH=function(){var h=tripH1();return tf?h.replace('<button class="btn er" onclick="delT()">','<button class="btn in" onclick="rdGeo()">🌍 توزيع جغرافي</button><button class="btn er" onclick="delT()">'):h};
@@ -829,6 +846,8 @@ function rdGeo(){if(GEO.run)return;var m=$('#md');m.style.display='block';
  m.innerHTML='<div class="box"><b>🌍 خيارات التوزيع الجغرافي</b>'
   +f('go_n','عدد السيارات',GCFG.n,'أول عدد من السيارات بالترتيب المستخدمة بالتوزيع (متوفر '+V.length+')')
   +f('go_cap','حمولة كل سيارة (كغ)',GCFG.cap,'ما بتتجاوزها أي جولة. بينحفظ كسعة للسيارات المستخدمة')
+  +f('go_minl','أدنى حمولة للجولة (كغ)',GCFG.minl,'ما بتطلع سيارة بأقل منها إلا إذا ما في خيار (0 = بلا حد)')
+  +sel('go_conf','إذا تعارضت الحمولة الدنيا مع أقصى الساعات',[['h','الأولوية للساعات (السائق ما يطوّل)'],['w','الأولوية للحمولة (دمج حتى لو طالت الجولة)']],GCFG.conf,'')
   +f('go_h','أقصى ساعات للجولة (0 = بلا حد)',GCFG.h,'قيادة + توقفات، حتى يرجع السائق للمستودع ويكمل الجولة التالية')
   +f('go_svc','دقائق التوقف بكل محطة',GCFG.svc,'للتحميل والتسليم والتوقيع',80)
   +f('go_spd','متوسط السرعة (كم/س)',GCFG.spd,'لحساب وقت القيادة من المسافة',80)
@@ -840,7 +859,7 @@ function rdGeo(){if(GEO.run)return;var m=$('#md');m.style.display='block';
   +f('go_glsq','أقصى عدد طرود للرمز الواحد بـ GLS',GCFG.glsq,'الرمز اللي طرده أكتر من هالعدد بيضل على السيارات',80)
   +'<div><button class="btn ok" onclick="gGo()">ابدأ التوزيع</button> <button class="btn g" onclick="$(\'#md\').style.display=\'none\'">إلغاء</button></div></div>'}
 function gGo(){var g=function(id){return($('#'+id)||{}).value},num=function(id,d,min){var v=parseFloat(g(id));return isNaN(v)?d:Math.max(min,v)};
- GCFG={n:Math.max(1,Math.round(num('go_n',2,1))),cap:num('go_cap',1700,1),h:num('go_h',9,0),svc:num('go_svc',6,0),spd:num('go_spd',80,20),far:g('go_far')=='mix'?'mix':'sep',prio:g('go_prio')=='dist'?'dist':'rounds',geo:g('go_geo')!='0',gls:g('go_gls')!='0',glsw:num('go_glsw',40,1),glsq:Math.round(num('go_glsq',4,1))};
+ GCFG={n:Math.max(1,Math.round(num('go_n',2,1))),cap:num('go_cap',1700,1),h:num('go_h',9,0),svc:num('go_svc',6,0),spd:num('go_spd',80,20),far:g('go_far')=='mix'?'mix':'sep',prio:g('go_prio')=='dist'?'dist':'rounds',geo:g('go_geo')!='0',gls:g('go_gls')!='0',glsw:num('go_glsw',40,1),glsq:Math.round(num('go_glsq',4,1)),minl:num('go_minl',1200,0),conf:g('go_conf')=='w'?'w':'h'};
  try{localStorage.setItem('gcfg',JSON.stringify(GCFG))}catch(e){}SVC=GCFG.svc;$('#md').style.display='none';gRun()}
 
 
@@ -851,10 +870,12 @@ function pkgW(x){var q=+x.q||0,w=+x.w||0;return q>0?w/q:w}
 async function glsLoad(){try{var r=await sb.from('parcels').select('id,gls,gls_track,is_oil').limit(5000);if(r.error){GLSE=r.error.message;return}GLSE='';var m={};(r.data||[]).forEach(function(x){m[x.id]=x});
  P.concat(AR).forEach(function(x){var d=m[x.id];if(d){x.gls=!!d.gls;x.gt=d.gls_track||'';x.isOil=d.is_oil}})}catch(e){GLSE=String(e.message||e)}}
 var load0=load;load=async function(){await load0();await glsLoad()};
-function glsApply(){GLSD=[];var cnt=0,lim=GCFG.h;
+var GLSR={far:0,q:0,w:0,oil:0};
+function glsApply(){GLSD=[];var cnt=0,lim=GCFG.h;GLSR={far:0,q:0,w:0,oil:0};
  P.forEach(function(x){if(x.ch||x.st=='done'||x.st=='fail'||x.st=='onway')return;if(x.gls&&x.gt)return;
   if(x.gls){x.gls=false;OV[x.key]={pk:false};GLSD.push(x)}
-  if(GCFG.gls&&lim>0&&x.st!='pickup'&&hasGeo(x)&&rdH([x])>lim&&pkgW(x)<=(GCFG.glsw||40)&&(+x.q||0)<=(GCFG.glsq||4)&&!oilOf(x)){x.gls=true;OV[x.key]={pk:true};GLSD.push(x);cnt++}});
+  if(lim>0&&x.st!='pickup'&&hasGeo(x)&&rdH([x])>lim){GLSR.far++;if((+x.q||0)>(GCFG.glsq||4))GLSR.q++;else if(pkgW(x)>(GCFG.glsw||40))GLSR.w++;else if(oilOf(x))GLSR.oil++;
+   if(GCFG.gls&&pkgW(x)<=(GCFG.glsw||40)&&(+x.q||0)<=(GCFG.glsq||4)&&!oilOf(x)){x.gls=true;OV[x.key]={pk:true};GLSD.push(x);cnt++}}});
  GLSD.forEach(function(x){derive(x)});return cnt}
 async function glsPersist(){var bad='';for(var x of GLSD){if(!x.id)continue;var r=await sb.from('parcels').update({gls:!!x.gls}).eq('id',x.id);if(r.error)bad=r.error.message}
  GLSD=[];if(bad)alert('تعذّر حفظ علامة GLS ('+bad+'). شغّل ملف tk-gls.sql بـ Supabase.')}
