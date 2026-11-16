@@ -731,22 +731,24 @@ async function vAsk(txt,speak){var el=$('#vr');if(!el)return;el.innerHTML='<div 
   say.push(vl=='de'?'Paket '+k+', '+(SD[p.st]||'')+(d?', Fahrzeug '+d.car:'')+(e?', voraussichtlich um '+fmtT(e):''):vl=='en'?'Parcel '+k+', '+(SE[p.st]||'')+(d?', vehicle '+d.car:'')+(e?', expected at '+fmtT(e):''):'طرد '+k+'، '+S[p.st]+(d?'، مع '+d.car:'')+(e?'، الوصول المتوقع الساعة '+fmtT(e):''))}
  el.innerHTML=html;if(speak)try{var u=new SpeechSynthesisUtterance(say.join('. '));u.lang=vLang();speechSynthesis.cancel();speechSynthesis.speak(u)}catch(x){}}
 function vOpen(){var m=$('#md');m.style.display='block';
- m.innerHTML='<div class="box"><b>🎤 اسأل عن طرد</b><div class="mut">اضغط المايك وقل مثلاً: «وين طرد جي 16؟» أو اكتب الرمز أو اسم الزبون.</div><div class="mut">لغة الكلام: <select id="vl" onchange="vSet(this.value)">'+[['ar-SA','العربية'],['de-DE','Deutsch'],['en-US','English'],['tr-TR','Türkçe']].map(function(o){return '<option value="'+o[0]+'"'+(o[0]==vLang()?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></div><div style="display:flex;gap:6px;margin:6px 0"><input id="vq" type="text" placeholder="G-16 أو اسم الزبون" style="flex:1" onkeydown="if(event.key==\'Enter\')vAsk(this.value)"><button class="btn" onclick="vAsk($(\'#vq\').value)">بحث</button><button class="btn g" id="vmic" onclick="vMic()">🎤</button></div><div id="vlive" style="min-height:26px;font-size:17px;margin:4px 0"></div><div id="vr"></div><button class="btn g" onclick="if(VREC)try{VREC.stop()}catch(e){}$(\'#md\').style.display=\'none\'">إغلاق</button></div>'}
+ m.innerHTML='<div class="box"><b>🎤 اسأل عن طرد</b><div class="mut">الأضمن بكل اللغات: اضغط على خانة البحث ثم 🎙 مايك لوحة المفاتيح (الإملاء)، فبيظهر كلامك مباشرة والنتيجة بتطلع وأنت عم تحكي. غيّر لغة الإملاء من زر 🌐 بلوحة المفاتيح. زر 🎤 تجريبي وممكن يتأخر على بعض الأجهزة.</div><div class="mut">لغة الكلام: <select id="vl" onchange="vSet(this.value)">'+[['ar-SA','العربية'],['de-DE','Deutsch'],['en-US','English'],['tr-TR','Türkçe']].map(function(o){return '<option value="'+o[0]+'"'+(o[0]==vLang()?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></div><div style="display:flex;gap:6px;margin:6px 0"><input id="vq" type="text" autocomplete="off" autocapitalize="off" placeholder="G-16 أو اسم الزبون" style="flex:1" oninput="vTyped(this.value)" onkeydown="if(event.key==\'Enter\')vAsk(this.value)"><button class="btn" onclick="vAsk($(\'#vq\').value)">بحث</button><button class="btn g" id="vmic" onclick="vMic()">🎤</button></div><div id="vlive" style="min-height:26px;font-size:17px;margin:4px 0"></div><div id="vr"></div><button class="btn g" onclick="if(VREC)try{VREC.stop()}catch(e){}$(\'#md\').style.display=\'none\'">إغلاق</button></div>';vFocus()}
 function vLang(){var l=null;try{l=localStorage.getItem('vl')}catch(e){}return l||({ar:'ar-SA',de:'de-DE',en:'en-US'}[trLang()]||'de-DE')}
 function vSet(v){try{localStorage.setItem('vl',v)}catch(e){}}
-var VREC=null,VT=null;
+var VREC=null,VT=null,VS=null,VTY=null;
+function vTyped(v){clearTimeout(VTY);v=String(v||'').trim();var lv=$('#vlive');if(v.length<2){var e=$('#vr');if(e)e.innerHTML='';return}VTY=setTimeout(function(){vAsk(v,false)},350)}
 function vMic(){var SR=window.SpeechRecognition||window.webkitSpeechRecognition,el=$('#vr'),b=$('#vmic'),live=$('#vlive');
  if(VREC){try{VREC.stop()}catch(x){}return}
  if(!SR){el.innerHTML='<div class="box mut">المتصفح ما بيدعم التعرف على الصوت (جرّب Safari أو Chrome). اكتب الرمز بدل ذلك.</div>';return}
- var r=new SR(),last='',done=false;VREC=r;r.lang=($('#vl')||{}).value||vLang();r.interimResults=true;r.continuous=false;r.maxAlternatives=3;
+ var r=new SR(),last='',done=false;VREC=r;r.lang=($('#vl')||{}).value||vLang();r.interimResults=true;r.continuous=true;r.maxAlternatives=3;
  r.onstart=function(){b.textContent='⏹ إيقاف';if(live)live.textContent='🎙 احكي، عم أسمعك...'};
  r.onresult=function(e){var all='',fin=false,alts=[];for(var i=0;i<e.results.length;i++){all+=e.results[i][0].transcript+' ';if(e.results[i].isFinal&&i>=e.resultIndex){fin=true;for(var j=0;j<e.results[i].length;j++)alts.push(e.results[i][j].transcript)}}
-  all=all.trim();last=all;var q=$('#vq');if(q)q.value=all;if(live)live.textContent='🎙 '+all;
-  if(fin&&!done){done=true;clearTimeout(VT);vAsk(alts.length?alts.join(' | '):all,true)}
+  all=all.trim();last=all;clearTimeout(VS);VS=setTimeout(function(){try{r.stop()}catch(x){}},2200);var q=$('#vq');if(q)q.value=all;if(live)live.textContent='🎙 '+all;
+  if(fin&&!done){done=true;clearTimeout(VT);clearTimeout(VS);vAsk(alts.length?alts.join(' | '):all,true);try{r.stop()}catch(x){}}
   else if(!fin&&!done){clearTimeout(VT);VT=setTimeout(function(){if(!done&&vFind(all).length)vAsk(all,false)},500)}};
  r.onerror=function(e){if(live)live.textContent=e.error=='no-speech'?'ما سمعت شي، قرّب المايك وجرّب مرة ثانية':e.error=='not-allowed'||e.error=='service-not-allowed'?'المايك غير مسموح. فعّله من إعدادات المتصفح':'تعذّر التسجيل ('+e.error+')'};
  r.onend=function(){VREC=null;clearTimeout(VT);var bb=$('#vmic');if(bb)bb.textContent='🎤';if(!done&&last){done=true;vAsk(last,true)}};
  try{r.start()}catch(x){VREC=null}}
+function vFocus(){var q=$('#vq');if(q)try{q.focus()}catch(e){}}
 function vBtn(){var n=document.querySelector('nav');if(!n||!me||n.querySelector('#vb'))return;n.insertAdjacentHTML('beforeend','<button id="vb" onclick="vOpen()">🎤 اسأل</button>')}
 var R_v=R;R=function(){R_v();vBtn()};
 
