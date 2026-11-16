@@ -775,7 +775,7 @@ async function geoAll(){if(GEO.run)return;
 
 
 /* ================= توزيع جغرافي: جولات مضغوطة بمسافات أقصر ================= */
-var GCFG={n:2,cap:1700,h:9,far:'sep',prio:'rounds',svc:6,spd:80,geo:true,gls:true,glsw:40};try{var gj=JSON.parse(localStorage.getItem('gcfg')||'null');if(gj&&gj.n>0&&gj.cap>0)GCFG=Object.assign(GCFG,gj)}catch(e){}
+var GCFG={n:2,cap:1700,h:9,far:'sep',prio:'rounds',svc:6,spd:80,geo:true,gls:true,glsw:40,glsq:4};try{var gj=JSON.parse(localStorage.getItem('gcfg')||'null');if(gj&&gj.n>0&&gj.cap>0)GCFG=Object.assign(GCFG,gj)}catch(e){}
 SVC=GCFG.svc;
 function tourKm(L){var cur=WH,rest=L.slice(),d=0;while(rest.length){var b=0,bd=1e9;rest.forEach(function(p,k){var x=hav(cur,p);if(x<bd){bd=x;b=k}});d+=bd;cur=rest.splice(b,1)[0]}return d+hav(cur,WH)}
 function tourOrder(L){var cur=WH,rest=L.slice(),o=[];while(rest.length){var b=0,bd=1e9;rest.forEach(function(p,k){var x=hav(cur,p);if(x<bd){bd=x;b=k}});cur=rest.splice(b,1)[0];o.push(cur)}return o}
@@ -835,11 +835,12 @@ function rdGeo(){if(GEO.run)return;var m=$('#md');m.style.display='block';
   +sel('go_far','الطرود البعيدة (ذهاب وعودة أطول من الحد)',[['sep','جولات منفصلة بالآخر'],['mix','دمجها مع باقي الجولات']],GCFG.far,'جولة عادية قصيرة، والبعيد لحاله بالآخر، أو كله مع بعض')
   +sel('go_prio','الأولوية',[['rounds','أقل عدد جولات'],['dist','أقصر مسافة']],GCFG.prio,'أقل جولات ممكن تزيد المسافة شوي، وأقصر مسافة ممكن تزيد عدد الجولات')
   +sel('go_geo','الطرود بدون موقع',[['1','حدّد مواقعها تلقائياً (ثانية لكل عنوان)'],['0','تجاهلها (بآخر الجولات)']],GCFG.geo?'1':'0','')
-  +sel('go_gls','شحن GLS للطرود البعيدة',[['1','نعم: البعيدة وزن الطرد ≤ الحد وبدون زيت تروح GLS'],['0','لا: كلها على السيارات']],GCFG.gls?'1':'0','بتنفصل عن الجولات وبتلاقيها بقائمة 📦 GLS')
+  +sel('go_gls','شحن GLS للطرود البعيدة',[['1','نعم: البعيدة (وزن الطرد وعدد الطرود ضمن الحد وبدون زيت) تروح GLS'],['0','لا: كلها على السيارات']],GCFG.gls?'1':'0','بتنفصل عن الجولات وبتلاقيها بقائمة 📦 GLS')
   +f('go_glsw','أقصى وزن للطرد الواحد بـ GLS (كغ)',GCFG.glsw,'حسب شروط GLS (حوالي 40 كغ). الوزن = وزن الرمز ÷ عدد الطرود',80)
+  +f('go_glsq','أقصى عدد طرود للرمز الواحد بـ GLS',GCFG.glsq,'الرمز اللي طرده أكتر من هالعدد بيضل على السيارات',80)
   +'<div><button class="btn ok" onclick="gGo()">ابدأ التوزيع</button> <button class="btn g" onclick="$(\'#md\').style.display=\'none\'">إلغاء</button></div></div>'}
 function gGo(){var g=function(id){return($('#'+id)||{}).value},num=function(id,d,min){var v=parseFloat(g(id));return isNaN(v)?d:Math.max(min,v)};
- GCFG={n:Math.max(1,Math.round(num('go_n',2,1))),cap:num('go_cap',1700,1),h:num('go_h',9,0),svc:num('go_svc',6,0),spd:num('go_spd',80,20),far:g('go_far')=='mix'?'mix':'sep',prio:g('go_prio')=='dist'?'dist':'rounds',geo:g('go_geo')!='0',gls:g('go_gls')!='0',glsw:num('go_glsw',40,1)};
+ GCFG={n:Math.max(1,Math.round(num('go_n',2,1))),cap:num('go_cap',1700,1),h:num('go_h',9,0),svc:num('go_svc',6,0),spd:num('go_spd',80,20),far:g('go_far')=='mix'?'mix':'sep',prio:g('go_prio')=='dist'?'dist':'rounds',geo:g('go_geo')!='0',gls:g('go_gls')!='0',glsw:num('go_glsw',40,1),glsq:Math.round(num('go_glsq',4,1))};
  try{localStorage.setItem('gcfg',JSON.stringify(GCFG))}catch(e){}SVC=GCFG.svc;$('#md').style.display='none';gRun()}
 
 
@@ -853,7 +854,7 @@ var load0=load;load=async function(){await load0();await glsLoad()};
 function glsApply(){GLSD=[];var cnt=0,lim=GCFG.h;
  P.forEach(function(x){if(x.ch||x.st=='done'||x.st=='fail'||x.st=='onway')return;if(x.gls&&x.gt)return;
   if(x.gls){x.gls=false;OV[x.key]={pk:false};GLSD.push(x)}
-  if(GCFG.gls&&lim>0&&x.st!='pickup'&&hasGeo(x)&&rdH([x])>lim&&pkgW(x)<=(GCFG.glsw||40)&&!oilOf(x)){x.gls=true;OV[x.key]={pk:true};GLSD.push(x);cnt++}});
+  if(GCFG.gls&&lim>0&&x.st!='pickup'&&hasGeo(x)&&rdH([x])>lim&&pkgW(x)<=(GCFG.glsw||40)&&(+x.q||0)<=(GCFG.glsq||4)&&!oilOf(x)){x.gls=true;OV[x.key]={pk:true};GLSD.push(x);cnt++}});
  GLSD.forEach(function(x){derive(x)});return cnt}
 async function glsPersist(){var bad='';for(var x of GLSD){if(!x.id)continue;var r=await sb.from('parcels').update({gls:!!x.gls}).eq('id',x.id);if(r.error)bad=r.error.message}
  GLSD=[];if(bad)alert('تعذّر حفظ علامة GLS ('+bad+'). شغّل ملف tk-gls.sql بـ Supabase.')}
