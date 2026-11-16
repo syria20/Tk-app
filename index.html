@@ -775,7 +775,7 @@ async function geoAll(){if(GEO.run)return;
 
 
 /* ================= توزيع جغرافي: جولات مضغوطة بمسافات أقصر ================= */
-var GCFG={n:2,cap:1700,h:9,far:'sep',prio:'rounds',svc:6,spd:80,geo:true};try{var gj=JSON.parse(localStorage.getItem('gcfg')||'null');if(gj&&gj.n>0&&gj.cap>0)GCFG=Object.assign(GCFG,gj)}catch(e){}
+var GCFG={n:2,cap:1700,h:9,far:'sep',prio:'rounds',svc:6,spd:80,geo:true,gls:true,glsw:40};try{var gj=JSON.parse(localStorage.getItem('gcfg')||'null');if(gj&&gj.n>0&&gj.cap>0)GCFG=Object.assign(GCFG,gj)}catch(e){}
 SVC=GCFG.svc;
 function tourKm(L){var cur=WH,rest=L.slice(),d=0;while(rest.length){var b=0,bd=1e9;rest.forEach(function(p,k){var x=hav(cur,p);if(x<bd){bd=x;b=k}});d+=bd;cur=rest.splice(b,1)[0]}return d+hav(cur,WH)}
 function tourOrder(L){var cur=WH,rest=L.slice(),o=[];while(rest.length){var b=0,bd=1e9;rest.forEach(function(p,k){var x=hav(cur,p);if(x<bd){bd=x;b=k}});cur=rest.splice(b,1)[0];o.push(cur)}return o}
@@ -813,11 +813,11 @@ async function gRun(){if(GEO.run)return;
  GEO.run=1;
  try{await load();for(var i=0;i<Math.min(GCFG.n,V.length);i++){if(V[i].cap!=GCFG.cap){V[i].cap=GCFG.cap;await sb.from('vehicles').update({capacity_kg:GCFG.cap}).eq('id',V[i].id)}}dist();var need=GCFG.geo?P.filter(function(p){return p.st=='assigned'&&!hasGeo(p)&&p.addr}):[];
   if(need.length){var r=await geoParcels(need,function(n,t,b){gToast('تحديد المواقع '+n+'/'+t+(b?' · فشل '+b:''))});}
-  gToast('جاري التوزيع...');dist();var res=geoAssign();
+  gToast('جاري التوزيع...');var glsN=glsApply();dist();var res=geoAssign();
   if(!res){gToast('');alert('ما في طرود لتوزيعها');return}
-  await save();await load();gToast('');
+  await save();await glsPersist();await load();gToast('');
   var km=function(x){return Math.round(x*1.3)};
-  msg='توزيع جغرافي: مجموع المسافة التقريبية '+km(res.before)+' كم ← '+km(res.after)+' كم · '+res.rounds+' جولة'+(res.bchunks>res.chunks?' (بدل '+Math.ceil(res.bchunks/Math.min(GCFG.n,V.length))+')':'')+(res.over?' · ⚠ '+res.over+' حمولة تتجاوز السعة':'')+' · أطول جولة عادية ~'+(Math.round(res.maxh*10)/10)+' ساعة'+(res.farn?' · '+res.farn+' طرد بعيد (ذهاب وعودة أكتر من '+GCFG.h+' ساعات) بجولات منفصلة بالآخر، أطولها ~'+(Math.round(res.farh*10)/10)+' ساعة':'')+(res.nogeo?' · '+res.nogeo+' طرد بدون موقع':'')+' | '}
+  msg='توزيع جغرافي: مجموع المسافة التقريبية '+km(res.before)+' كم ← '+km(res.after)+' كم · '+res.rounds+' جولة'+(res.bchunks>res.chunks?' (بدل '+Math.ceil(res.bchunks/Math.min(GCFG.n,V.length))+')':'')+(res.over?' · ⚠ '+res.over+' حمولة تتجاوز السعة':'')+' · أطول جولة عادية ~'+(Math.round(res.maxh*10)/10)+' ساعة'+(res.farn?' · '+res.farn+' طرد بعيد (ذهاب وعودة أكتر من '+GCFG.h+' ساعات) بجولات منفصلة بالآخر، أطولها ~'+(Math.round(res.farh*10)/10)+' ساعة':'')+(res.nogeo?' · '+res.nogeo+' طرد بدون موقع':'')+(glsN?' · '+glsN+' طرد تحوّلت لـ GLS':'')+' | '}
  catch(e){gToast('');alert('خطأ: '+(e.message||e))}finally{GEO.run=0}
  R()}
 var tripH1=tripH;tripH=function(){var h=tripH1();return tf?h.replace('<button class="btn er" onclick="delT()">','<button class="btn in" onclick="rdGeo()">🌍 توزيع جغرافي</button><button class="btn er" onclick="delT()">'):h};
@@ -835,10 +835,50 @@ function rdGeo(){if(GEO.run)return;var m=$('#md');m.style.display='block';
   +sel('go_far','الطرود البعيدة (ذهاب وعودة أطول من الحد)',[['sep','جولات منفصلة بالآخر'],['mix','دمجها مع باقي الجولات']],GCFG.far,'جولة عادية قصيرة، والبعيد لحاله بالآخر، أو كله مع بعض')
   +sel('go_prio','الأولوية',[['rounds','أقل عدد جولات'],['dist','أقصر مسافة']],GCFG.prio,'أقل جولات ممكن تزيد المسافة شوي، وأقصر مسافة ممكن تزيد عدد الجولات')
   +sel('go_geo','الطرود بدون موقع',[['1','حدّد مواقعها تلقائياً (ثانية لكل عنوان)'],['0','تجاهلها (بآخر الجولات)']],GCFG.geo?'1':'0','')
+  +sel('go_gls','شحن GLS للطرود البعيدة',[['1','نعم: البعيدة وزن الطرد ≤ الحد وبدون زيت تروح GLS'],['0','لا: كلها على السيارات']],GCFG.gls?'1':'0','بتنفصل عن الجولات وبتلاقيها بقائمة 📦 GLS')
+  +f('go_glsw','أقصى وزن للطرد الواحد بـ GLS (كغ)',GCFG.glsw,'حسب شروط GLS (حوالي 40 كغ). الوزن = وزن الرمز ÷ عدد الطرود',80)
   +'<div><button class="btn ok" onclick="gGo()">ابدأ التوزيع</button> <button class="btn g" onclick="$(\'#md\').style.display=\'none\'">إلغاء</button></div></div>'}
 function gGo(){var g=function(id){return($('#'+id)||{}).value},num=function(id,d,min){var v=parseFloat(g(id));return isNaN(v)?d:Math.max(min,v)};
- GCFG={n:Math.max(1,Math.round(num('go_n',2,1))),cap:num('go_cap',1700,1),h:num('go_h',9,0),svc:num('go_svc',6,0),spd:num('go_spd',80,20),far:g('go_far')=='mix'?'mix':'sep',prio:g('go_prio')=='dist'?'dist':'rounds',geo:g('go_geo')!='0'};
+ GCFG={n:Math.max(1,Math.round(num('go_n',2,1))),cap:num('go_cap',1700,1),h:num('go_h',9,0),svc:num('go_svc',6,0),spd:num('go_spd',80,20),far:g('go_far')=='mix'?'mix':'sep',prio:g('go_prio')=='dist'?'dist':'rounds',geo:g('go_geo')!='0',gls:g('go_gls')!='0',glsw:num('go_glsw',40,1)};
  try{localStorage.setItem('gcfg',JSON.stringify(GCFG))}catch(e){}SVC=GCFG.svc;$('#md').style.display='none';gRun()}
+
+
+/* ================= شحن GLS للطرود البعيدة ================= */
+var GLSE='',GLSD=[];
+function oilOf(x){return x.isOil!=null?!!x.isOil:/زيت|(^|[^a-zäöüß])(öl|oel|oil|olive)/i.test(String(x.content||''))}
+function pkgW(x){var q=+x.q||0,w=+x.w||0;return q>0?w/q:w}
+async function glsLoad(){try{var r=await sb.from('parcels').select('id,gls,gls_track,is_oil').limit(5000);if(r.error){GLSE=r.error.message;return}GLSE='';var m={};(r.data||[]).forEach(function(x){m[x.id]=x});
+ P.concat(AR).forEach(function(x){var d=m[x.id];if(d){x.gls=!!d.gls;x.gt=d.gls_track||'';x.isOil=d.is_oil}})}catch(e){GLSE=String(e.message||e)}}
+var load0=load;load=async function(){await load0();await glsLoad()};
+function glsApply(){GLSD=[];var cnt=0,lim=GCFG.h;
+ P.forEach(function(x){if(x.ch||x.st=='done'||x.st=='fail'||x.st=='onway')return;if(x.gls&&x.gt)return;
+  if(x.gls){x.gls=false;OV[x.key]={pk:false};GLSD.push(x)}
+  if(GCFG.gls&&lim>0&&x.st!='pickup'&&hasGeo(x)&&rdH([x])>lim&&pkgW(x)<=(GCFG.glsw||40)&&!oilOf(x)){x.gls=true;OV[x.key]={pk:true};GLSD.push(x);cnt++}});
+ GLSD.forEach(function(x){derive(x)});return cnt}
+async function glsPersist(){var bad='';for(var x of GLSD){if(!x.id)continue;var r=await sb.from('parcels').update({gls:!!x.gls}).eq('id',x.id);if(r.error)bad=r.error.message}
+ GLSD=[];if(bad)alert('تعذّر حفظ علامة GLS ('+bad+'). شغّل ملف tk-gls.sql بـ Supabase.')}
+function glsList(){return P.filter(function(x){return x.gls&&tfp(x)}).sort(function(a,b){return String(a.code).localeCompare(String(b.code))})}
+function glsOpen(){var L=glsList(),m=$('#md'),w=0,c=0;m.style.display='block';L.forEach(function(x){w+=+x.w||0;c+=+x.collect||0});
+ m.innerHTML='<div class="box"><b>📦 طرود GLS</b><div class="mut">'+L.length+' رمز · '+Math.round(w*10)/10+' كغ · تحصيل '+Math.round(c*100)/100+' €</div>'+(GLSE?'<div class="mut" style="color:#e53e3e">⚠ '+E(GLSE)+' — شغّل tk-gls.sql بـ Supabase</div>':'')
+  +(L.length?'<div><button class="btn in" onclick="glsCsv()">⬇ CSV</button> <button class="btn g" onclick="glsCopy()">📋 نسخ</button></div>':'<div class="mut">ما في طرود GLS. فعّل خيار GLS بنافذة التوزيع الجغرافي.</div>')
+  +L.map(function(x){var i=P.indexOf(x);return '<div class="job"><div class="top"><b>'+E(x.base||x.code)+' · '+E(x.name)+'</b><span class="mut">رحلة '+E(x.trip)+'</span></div><div class="mut">'+E(x.addr)+'</div><div class="mut">'+x.q+' طرد × '+Math.round(pkgW(x)*10)/10+' كغ = '+x.w+' كغ'+(x.collect?' · تحصيل '+x.collect+' €':'')+' · '+E(deClean(de(x.content)))+'</div>'
+   +'<input type="text" placeholder="رقم التتبع" value="'+E(x.gt||'')+'" style="width:100%;margin:4px 0" onchange="glsTrack('+i+',this.value)">'
+   +'<button class="btn g" onclick="glsBack('+i+',0)">رجوع للسيارات</button> <button class="btn g" onclick="glsBack('+i+',1)">🛢 زيت (ما بينشحن)</button></div>'}).join('')
+  +'<button class="btn g" onclick="$(\'#md\').style.display=\'none\'">إغلاق</button></div>'}
+async function glsTrack(i,v){var x=P[i];if(!x)return;x.gt=v.trim();var ids=P.filter(function(y){return y.trip==x.trip&&(y.base||y.code)==(x.base||x.code)&&y.id}).map(function(y){return y.id});
+ if(ids.length){var r=await sb.from('parcels').update({gls_track:x.gt||null}).in('id',ids);if(r.error)alert(r.error.message)}}
+async function glsBack(i,oil){var x=P[i];if(!x)return;if(!confirm(oil?'تعليم الطرد كزيت (ما بينشحن) وإرجاعه للسيارات؟':'إرجاعه لجولات السيارات؟'))return;
+ x.gls=false;if(oil)x.isOil=true;OV[x.key]={pk:false};derive(x);GLSD=[x];
+ try{await save();var ids=P.filter(function(y){return y.trip==x.trip&&(y.base||y.code)==(x.base||x.code)&&y.id}).map(function(y){return y.id});
+  if(ids.length){var u={gls:false,gls_track:null};if(oil)u.is_oil=true;var r=await sb.from('parcels').update(u).in('id',ids);if(r.error)alert(r.error.message)}
+  await load()}catch(e){alert(e.message||e)}GLSD=[];glsOpen();R();alert('رجع الطرد للسيارات. اضغط "🌍 توزيع جغرافي" لإدخاله بجولة.')}
+function glsRows(){return glsList().map(function(x){return[x.base||x.code,x.name,x.addr,x.tel,x.q,Math.round(pkgW(x)*100)/100,x.w,x.collect||0,deClean(de(x.content)),x.gt||'']})}
+function glsCsv(){var H=['Code','Name','Adresse','Telefon','Pakete','Gewicht pro Paket kg','Gesamtgewicht kg','Nachnahme EUR','Inhalt','Trackingnr'],q=function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'};
+ var csv='﻿'+[H].concat(glsRows()).map(function(r){return r.map(q).join(';')}).join('\r\n');dl(new Blob([csv],{type:'text/csv;charset=utf-8'}),'GLS-'+(tf||'alle')+'.csv')}
+function glsCopy(){var t=glsRows().map(function(r){return r.join('\t')}).join('\n');try{navigator.clipboard.writeText(t).then(function(){alert('تم النسخ')},function(){alert('تعذّر النسخ')})}catch(e){alert('تعذّر النسخ')}}
+function glsBtn(){var n=document.querySelector('nav');if(!n||!me||U[me].r!='a')return;var c=P.filter(function(x){return x.gls}).length,b=n.querySelector('#gb'),t='📦 GLS'+(c?' ('+c+')':'');
+ if(b){b.textContent=t}else n.insertAdjacentHTML('beforeend','<button id="gb" onclick="glsOpen()">'+t+'</button>')}
+var R_g=R;R=function(){R_g();glsBtn()};
 
 </script>
 </body>
