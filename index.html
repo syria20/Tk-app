@@ -752,6 +752,27 @@ function vFocus(){var q=$('#vq');if(q)try{q.focus()}catch(e){}}
 function vBtn(){var n=document.querySelector('nav');if(!n||!me||n.querySelector('#vb'))return;n.insertAdjacentHTML('beforeend','<button id="vb" onclick="vOpen()">🎤 اسأل</button>')}
 var R_v=R;R=function(){R_v();vBtn()};
 
+
+/* ================= تحديد المواقع: فقط للسيارة/الجولة المختارة ================= */
+async function geoAll(){if(GEO.run)return;
+ var CC={DE:'de',NL:'nl',BE:'be',FR:'fr',AT:'at'},CN={DE:'Germany',NL:'Netherlands',BE:'Belgium',FR:'France',AT:'Austria'},gs={},st=function(t){var e=$('#gs');if(e)e.textContent=t},sel=[];
+ mapGroups().forEach(function(g){g.stops.forEach(function(p){sel.push(p)})});
+ sel.forEach(function(p){if(p.st=='split'||p.st=='pickup'||hasGeo(p)||!p.addr)return;var k=p.trip+'|'+(p.base||p.code);(gs[k]=gs[k]||[]).push(p)});
+ var ks=Object.keys(gs),n=0,bad=0;
+ if(!ks.length){GEO.last='✓ كل طرود هالجولة مواقعها محددة ('+sel.length+' طرد)';R();return}
+ GEO.run=1;
+ try{
+ for(var k of ks){var L=gs[k],p=L[0],a=p.addr.replace(/\s+,/g,',').replace(/\s+/g,' '),seg=a.split(',').map(function(s){return s.trim()}),pz=(seg.filter(function(s){return /\d{4,5}/.test(s)})[0]||'').trim(),g=null,q='';
+  var tr=[[a,'full'],[seg.slice().reverse().join(', '),'swap'],[pz?pz+' '+CN[p.reg]:'','zip']];
+  for(var t of tr){if(!t[0])continue;g=await gq(t[0],CC[p.reg]);await sl(1100);if(g){q=t[1];break}}
+  n++;st('تحديد المواقع '+n+'/'+ks.length+(bad?' · فشل '+bad:''));
+  if(g){var fam=P.filter(function(x){return x.trip==p.trip&&(x.base||x.code)==(p.base||p.code)}),ids=fam.map(function(x){x.lat=g.lat;x.lng=g.lng;x.gq=q;return x.id}).filter(Boolean);
+   if(ids.length)await sb.from('parcels').update({lat:g.lat,lng:g.lng,geo_q:q}).in('id',ids)}else bad++}
+ GEO.last='انتهى تحديد المواقع: '+(ks.length-bad)+' من '+ks.length+(bad?' · '+bad+' بدون موقع':'');
+ try{for(var g2 of mapGroups())await optGroup(g2)}catch(e){}
+ }finally{GEO.run=0}
+ await load();R()}
+
 </script>
 </body>
 </html>
